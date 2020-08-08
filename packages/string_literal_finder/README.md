@@ -31,8 +31,8 @@ will result in those warnings:
 
 ```shell
 $ dart bin/string_literal_finder.dart example
-2020-08-08 14:21:18.259156 INFO string_literal_finder - Found 1 literals:
-2020-08-08 14:21:18.259511 INFO string_literal_finder - /Users/herbert/dev/string_literal_finder/packages/string_literal_finder/example/lib/example.dart:18:30 'not translated'
+2020-08-08 14:38:47.800339 INFO string_literal_finder - Found 1 literals:
+2020-08-08 14:38:47.801934 INFO string_literal_finder - lib/example.dart:17:30 'not translated'
 Found 1 literals in 1 files.
 $ 
 ```

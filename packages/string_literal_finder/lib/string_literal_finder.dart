@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+import 'package:path/path.dart' as path;
 
 final _logger = Logger('string_literal_finder');
 
@@ -28,7 +29,8 @@ class StringLiteralFinder {
     }
     _logger.info('Found ${foundStringLiterals.length} literals:');
     for (final f in foundStringLiterals) {
-      _logger.info('${f.filePath}:${f.loc} ${f.stringLiteral}');
+      final relative = path.relative(f.filePath, from: basePath);
+      _logger.info('$relative:${f.loc} ${f.stringLiteral}');
     }
     return foundStringLiterals;
   }
