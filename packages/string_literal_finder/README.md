@@ -5,6 +5,16 @@ in dart code.
 
 Tries to be smart about ignoring specific strings.
 
+## Installation & Usage
+
+```console
+$ pub global activate string_literal_finder
+$ pub global run string_literal_finder example
+2020-08-08 15:11:31.273227 INFO string_literal_finder - Found 1 literals:
+2020-08-08 15:11:31.274592 INFO string_literal_finder - lib/example.dart:17:30 'not translated'
+Found 1 literals in 1 files.
+```
+
 ## Example
 
 The following dart file:
