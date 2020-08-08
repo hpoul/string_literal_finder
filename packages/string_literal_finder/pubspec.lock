@@ -16,7 +16,7 @@ packages:
     source: hosted
     version: "0.39.16"
   args:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: args
       url: "https://pub.dartlang.org"
@@ -340,10 +340,10 @@ packages:
   string_literal_finder_annotations:
     dependency: "direct main"
     description:
-      path: "../string_literal_finder_annotations"
-      relative: true
-    source: path
-    version: "0.0.0"
+      name: string_literal_finder_annotations
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "0.1.0"
   string_scanner:
     dependency: transitive
     description:
