@@ -2,9 +2,12 @@ import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
+import 'package:source_gen/source_gen.dart';
+import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
 
 final _logger = Logger('string_literal_finder');
 
@@ -20,7 +23,7 @@ class StringLiteralFinder {
     _logger.finer('Finding contexts.');
     for (final context in collection.contexts) {
       for (final filePath in context.contextRoot.analyzedFiles()) {
-        analyzeSingleFile(context, filePath);
+        await analyzeSingleFile(context, filePath);
       }
     }
     _logger.info('Found ${foundStringLiterals.length} literals:');
@@ -30,11 +33,13 @@ class StringLiteralFinder {
     return foundStringLiterals;
   }
 
-  void analyzeSingleFile(AnalysisContext context, String filePath) {
+  Future<void> analyzeSingleFile(
+      AnalysisContext context, String filePath) async {
     _logger.fine('analyzing $filePath');
-    final result = context.currentSession.getParsedUnit(filePath);
+//    final result = context.currentSession.getParsedUnit(filePath);
+    final result = await context.currentSession.getResolvedUnit(filePath);
     final unit = result.unit;
-    final visitor = StringLiteralVisitor(
+    final visitor = StringLiteralVisitor<dynamic>(
         unit: unit,
         foundStringLiteral: (loc, stringLiteral) {
           foundStringLiterals.add(FoundStringLiteral(
@@ -69,6 +74,9 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   StringLiteralVisitor({this.unit, this.foundStringLiteral})
       : lineInfo = unit.lineInfo;
 
+  static const loggerChecker = TypeChecker.fromRuntime(Logger);
+  static const nonNlsChecker = TypeChecker.fromRuntime(NonNlsArg);
+
   final CompilationUnit unit;
   final LineInfo lineInfo;
   final void Function(CharacterLocation loc, StringLiteral stringLiteral)
@@ -85,12 +93,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     }
 
     final lineInfo = unit.lineInfo;
-    final loc = lineInfo.getLocation(node.beginToken.charOffset);
+    final loc =
+        lineInfo.getLocation(node.beginToken.charOffset) as CharacterLocation;
 
     final next = node.endToken.next;
     final nextNext = next?.next;
     _logger.finest(
-        '''Found string literal (${loc.lineNumber}:${loc.columnNumber}) ${node}
+        '''Found string literal (${loc.lineNumber}:${loc.columnNumber}) $node
          - parent: $parent (${parent.runtimeType})
          - parentParent: $pp (${pp.runtimeType} / ${pp.parent?.runtimeType})
          - next: $next
@@ -100,24 +109,53 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     return super.visitStringLiteral(node);
   }
 
+  bool _checkArgumentAnnotation(ArgumentList argumentList,
+      ExecutableElement executableElement, Expression nodeChildChild) {
+    final argPos = argumentList.arguments.indexOf(nodeChildChild);
+    assert(argPos != -1);
+    final param = executableElement.parameters[argPos];
+    if (nonNlsChecker.hasAnnotationOf(param)) {
+//      _logger.finest('XX Argument is annotated with NonNls.');
+      return true;
+    }
+    return false;
+  }
+
   bool _shouldIgnore(AstNode origNode) {
     var node = origNode;
-    for (; node != null; node = node.parent) {
+    AstNode nodeChild;
+    AstNode nodeChildChild;
+    for (;
+        node != null;
+        nodeChildChild = nodeChild, nodeChild = node, node = node.parent) {
       if (node is ImportDirective) {
         return true;
       }
       if (node is InstanceCreationExpression) {
-        if (node.constructorName.type.name.name == 'RouteSettings') {
+        assert(nodeChild == node.argumentList);
+        if (_checkArgumentAnnotation(node.argumentList,
+            node.constructorName.staticElement, nodeChildChild as Expression)) {
+          return true;
+        }
+//        param.no
+        const ignoredConstructors = ['RouteSettings', 'Logger'];
+        if (ignoredConstructors.contains(node.constructorName.type.name.name)) {
           return true;
         }
       }
       if (node is MethodInvocation) {
-        final target = node.target;
-        if (target is SimpleIdentifier && target.name == '_logger') {
+        if (_checkArgumentAnnotation(
+            node.argumentList,
+            node.methodName.staticElement as ExecutableElement,
+            nodeChildChild as Expression)) {
           return true;
         }
-        if (node.methodName.name == 'Logger') {
-          return true;
+        final target = node.target;
+        if (target != null) {
+          // ignore all calls to `Logger`
+          if (loggerChecker.isAssignableFromType(target.staticType)) {
+            return true;
+          }
         }
       }
     }

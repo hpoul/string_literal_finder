@@ -12,6 +12,9 @@ dependencies:
   logging_appenders: ^0.4.2+3
   path: ^1.7.0
   meta: ^1.2.2
+  source_gen: ^0.9.6
+  string_literal_finder_annotations:
+    path: ../string_literal_finder_annotations
 
 dev_dependencies:
   pedantic: ^1.9.0
