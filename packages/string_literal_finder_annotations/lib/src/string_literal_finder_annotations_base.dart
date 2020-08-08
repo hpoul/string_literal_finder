@@ -1,0 +1,3 @@
+class NonNls {
+  const NonNls();
+}
