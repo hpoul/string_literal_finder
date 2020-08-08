@@ -1,3 +1,7 @@
+## 0.1.1+2
+
+- allow configuring of excludes, exclude .g.dart files, output statistics at end.
+
 ## 0.1.1+1
 
 - Use better command line parsing, implement help command.

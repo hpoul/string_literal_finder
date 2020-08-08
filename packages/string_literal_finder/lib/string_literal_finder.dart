@@ -13,10 +13,17 @@ import 'package:path/path.dart' as path;
 final _logger = Logger('string_literal_finder');
 
 class StringLiteralFinder {
-  StringLiteralFinder(this.basePath);
+  StringLiteralFinder({
+    this.basePath,
+    this.excludePaths,
+  });
 
-  String basePath;
+  final String basePath;
+  final List<String> excludePaths;
+
   final List<FoundStringLiteral> foundStringLiterals = [];
+  final Set<String> filesSkipped = <String>{};
+  final Set<String> filesAnalyzed = <String>{};
 
   Future<List<FoundStringLiteral>> start() async {
     _logger.fine('Starting analysis.');
@@ -24,6 +31,16 @@ class StringLiteralFinder {
     _logger.finer('Finding contexts.');
     for (final context in collection.contexts) {
       for (final filePath in context.contextRoot.analyzedFiles()) {
+        final relative = path.relative(filePath, from: basePath);
+        if (excludePaths
+                .where((element) => relative.startsWith(element))
+                .isNotEmpty ||
+            // exclude generated code.
+            filePath.endsWith('.g.dart')) {
+          filesSkipped.add(filePath);
+          continue;
+        }
+        filesAnalyzed.add(filePath);
         await analyzeSingleFile(context, filePath);
       }
     }
@@ -130,35 +147,48 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     for (;
         node != null;
         nodeChildChild = nodeChild, nodeChild = node, node = node.parent) {
-      if (node is ImportDirective) {
-        return true;
-      }
-      if (node is InstanceCreationExpression) {
-        assert(nodeChild == node.argumentList);
-        if (_checkArgumentAnnotation(node.argumentList,
-            node.constructorName.staticElement, nodeChildChild as Expression)) {
+      try {
+        if (node is ImportDirective) {
           return true;
         }
+        if (node is InstanceCreationExpression) {
+          assert(nodeChild == node.argumentList);
+          if (_checkArgumentAnnotation(
+              node.argumentList,
+              node.constructorName.staticElement,
+              nodeChildChild as Expression)) {
+            return true;
+          }
 //        param.no
-        const ignoredConstructors = ['RouteSettings', 'Logger'];
-        if (ignoredConstructors.contains(node.constructorName.type.name.name)) {
-          return true;
-        }
-      }
-      if (node is MethodInvocation) {
-        if (_checkArgumentAnnotation(
-            node.argumentList,
-            node.methodName.staticElement as ExecutableElement,
-            nodeChildChild as Expression)) {
-          return true;
-        }
-        final target = node.target;
-        if (target != null) {
-          // ignore all calls to `Logger`
-          if (loggerChecker.isAssignableFromType(target.staticType)) {
+          const ignoredConstructors = ['RouteSettings', 'Logger'];
+          if (ignoredConstructors
+              .contains(node.constructorName.type.name.name)) {
             return true;
           }
         }
+        if (node is MethodInvocation) {
+          if (nodeChildChild is! Expression) {
+            _logger.warning('not an expression. $nodeChildChild ($node)');
+          } else if (_checkArgumentAnnotation(
+              node.argumentList,
+              node.methodName.staticElement as ExecutableElement,
+              nodeChildChild as Expression)) {
+            return true;
+          }
+          final target = node.target;
+          if (target != null) {
+            // ignore all calls to `Logger`
+            if (target.staticType == null) {
+              _logger.warning('Unable to resolve type for $target');
+            } else if (loggerChecker.isAssignableFromType(target.staticType)) {
+              return true;
+            }
+          }
+        }
+      } catch (e, stackTrace) {
+        final loc = lineInfo.getLocation(origNode.offset);
+        _logger.severe(
+            'Error while analysing node $origNode at $loc', e, stackTrace);
       }
     }
     // see if we can find a line end comment.
