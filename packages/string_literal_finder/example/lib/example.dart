@@ -1,8 +1,7 @@
 library example;
 
-import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
-
 import 'package:logging/logging.dart';
+import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
 
 final _logger = Logger('example');
 
