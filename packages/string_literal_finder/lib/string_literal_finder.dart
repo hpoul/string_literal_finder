@@ -6,9 +6,9 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as path;
 import 'package:source_gen/source_gen.dart';
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
-import 'package:path/path.dart' as path;
 
 final _logger = Logger('string_literal_finder');
 
@@ -95,6 +95,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 
   static const loggerChecker = TypeChecker.fromRuntime(Logger);
   static const nonNlsChecker = TypeChecker.fromRuntime(NonNlsArg);
+  static const ignoredConstructorCalls = [
+    TypeChecker.fromUrl(
+        'package:flutter/src/painting/image_resolution.dart#AssetImage'),
+    TypeChecker.fromUrl(
+        'package:flutter/src/widgets/navigator.dart#RouteSettings'),
+    loggerChecker,
+  ];
 
   final CompilationUnit unit;
   final LineInfo lineInfo;
@@ -132,7 +139,18 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
       ExecutableElement executableElement, Expression nodeChildChild) {
     final argPos = argumentList.arguments.indexOf(nodeChildChild);
     assert(argPos != -1);
-    final param = executableElement.parameters[argPos];
+    final arg = argumentList.arguments[argPos];
+    ParameterElement param;
+    if (arg is NamedExpression) {
+      param = executableElement.parameters.firstWhere(
+          (element) => element.isNamed && element.name == arg.name.label.name,
+          orElse: () => throw StateError(
+              'Unable to find parameter of name ${arg.name.label} for '
+              '$executableElement'));
+    } else {
+      param = executableElement.parameters[argPos];
+      assert(param.isPositional);
+    }
     if (nonNlsChecker.hasAnnotationOf(param)) {
 //      _logger.finest('XX Argument is annotated with NonNls.');
       return true;
@@ -160,10 +178,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             return true;
           }
 //        param.no
-          const ignoredConstructors = ['RouteSettings', 'Logger'];
-          if (ignoredConstructors
-              .contains(node.constructorName.type.name.name)) {
-            return true;
+//          node.constructorName.staticElement;
+          for (final ignoredConstructorCall in ignoredConstructorCalls) {
+            if (ignoredConstructorCall
+                .isAssignableFrom(node.staticType.element)) {
+              return true;
+            }
           }
         }
         if (node is MethodInvocation) {
