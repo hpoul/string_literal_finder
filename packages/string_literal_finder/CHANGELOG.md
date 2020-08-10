@@ -1,3 +1,8 @@
+## 0.1.1+4
+
+- Improve NonNls annotation checker for named parameters.
+- Improve dartdoc.
+
 ## 0.1.1+3
 
 - added 'filesWithoutLiterals' to metrics output.
