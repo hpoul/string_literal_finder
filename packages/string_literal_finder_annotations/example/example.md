@@ -1,10 +1,7 @@
-# string_literal_finder_annotations
+See [string_literal_finder][1] for details.
 
-Runtime helper for the [string_literal_finder](https://pub.dev/packages/string_literal_finder).
+[1]: https://pub.dev/packages/string_literal_finder
 
-## Usage
-
-A simple usage example:
 
 ```dart
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
@@ -21,9 +18,3 @@ main() {
   });
 }
 ```
-
-## Features and bugs
-
-Please file feature requests and bugs at the [issue tracker][tracker].
-
-[tracker]: http://example.com/issues/replaceme
