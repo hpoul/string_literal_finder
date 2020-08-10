@@ -54,6 +54,9 @@ Future<void> main(List<String> arguments) async {
     );
     final foundStringLiterals = await stringLiteralFinder.start();
     final fileCount = foundStringLiterals.map((e) => e.filePath).toSet();
+    final nonLiteralFiles =
+        stringLiteralFinder.filesAnalyzed.difference(fileCount);
+    _logger.finest('Files without Literals: $nonLiteralFiles 👍️');
     print('Found ${foundStringLiterals.length} literals in '
         '${fileCount.length} files.');
     final result = {
@@ -61,6 +64,8 @@ Future<void> main(List<String> arguments) async {
       'stringLiteralsFiles': fileCount.length,
       'filesAnalyzed': stringLiteralFinder.filesAnalyzed.length,
       'filesSkipped': stringLiteralFinder.filesSkipped.length,
+      'filesWithoutLiterals':
+          stringLiteralFinder.filesAnalyzed.length - fileCount.length,
     };
     final jsonMetrics = const JsonEncoder.withIndent('  ').convert(result);
     print(jsonMetrics);

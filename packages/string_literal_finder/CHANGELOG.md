@@ -1,3 +1,7 @@
+## 0.1.1+3
+
+- added 'filesWithoutLiterals' to metrics output.
+
 ## 0.1.1+2
 
 - allow configuring of excludes, exclude .g.dart files, output statistics at end.
