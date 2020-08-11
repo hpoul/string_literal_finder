@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:logging_appenders/logging_appenders.dart';
+import 'package:string_literal_finder/src/string_literal_finder.dart';
 import 'package:string_literal_finder/string_literal_finder.dart';
 import 'package:path/path.dart' as path;
 
@@ -17,6 +18,7 @@ const ARG_HELP = 'help';
 const ARG_VERBOSE = 'verbose';
 const ARG_SILENT = 'silent';
 const ARG_EXCLUDE_PATH = 'exclude-path';
+const ARG_EXCLUDE_SUFFIX = 'exclude-suffix';
 const ARG_METRICS_FILE = 'metrics-output-file';
 
 Future<void> main(List<String> arguments) async {
@@ -30,7 +32,9 @@ Future<void> main(List<String> arguments) async {
     ..addOption(ARG_METRICS_FILE,
         abbr: 'm', help: 'File to write json metrics to')
     ..addMultiOption(ARG_EXCLUDE_PATH,
-        help: 'Exclude paths (relative to path).')
+        help: 'Exclude paths (relative to path, "startsWith").')
+    ..addMultiOption(ARG_EXCLUDE_SUFFIX,
+        help: 'Exclude path suffixes ("endsWith").')
     ..addFlag(ARG_VERBOSE, abbr: 'v')
     ..addFlag(ARG_SILENT, abbr: 's')
     ..addFlag(ARG_HELP, abbr: 'h', negatable: false);
@@ -50,7 +54,12 @@ Future<void> main(List<String> arguments) async {
     final absolutePath = path.absolute(basePath);
     final stringLiteralFinder = StringLiteralFinder(
       basePath: absolutePath,
-      excludePaths: results[ARG_EXCLUDE_PATH] as List<String>,
+      excludePaths: ExcludePathChecker.excludePathDefaults
+          .followedBy((results[ARG_EXCLUDE_PATH] as List<String>)
+              .map((e) => ExcludePathChecker.excludePathCheckerStartsWith(e)))
+          .followedBy((results[ARG_EXCLUDE_SUFFIX] as List<String>)
+              .map((e) => ExcludePathChecker.excludePathCheckerEndsWith(e)))
+          .toList(),
     );
     final foundStringLiterals = await stringLiteralFinder.start();
     final fileCount = foundStringLiterals.map((e) => e.filePath).toSet();

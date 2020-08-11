@@ -12,6 +12,40 @@ import 'package:string_literal_finder_annotations/string_literal_finder_annotati
 
 final _logger = Logger('string_literal_finder');
 
+abstract class ExcludePathChecker {
+  const ExcludePathChecker();
+
+  static ExcludePathChecker excludePathCheckerStartsWith(String exclude) =>
+      _ExcludePathCheckerImpl(
+        predicate: (path) => path.startsWith(exclude),
+        description: 'Starts with: $exclude',
+      );
+
+  static ExcludePathChecker excludePathCheckerEndsWith(String exclude) =>
+      _ExcludePathCheckerImpl(
+        predicate: (path) => path.endsWith(exclude),
+        description: 'Ends with: $exclude',
+      );
+
+  static final excludePathDefaults = [
+    excludePathCheckerStartsWith('l10n'),
+    excludePathCheckerEndsWith('.g.dart'),
+    excludePathCheckerEndsWith('.freezed.dart'),
+  ];
+
+  bool shouldExclude(String path);
+}
+
+@immutable
+class _ExcludePathCheckerImpl extends ExcludePathChecker {
+  const _ExcludePathCheckerImpl({this.predicate, this.description});
+  final bool Function(String path) predicate;
+  final String description;
+
+  @override
+  bool shouldExclude(String path) => predicate(path);
+}
+
 /// The main finder class which will use dart analyzer to analyse all
 /// dart files in the given [basePath] and look for string literals.
 /// Some literals will be (smartly) ignored which should not be localized.
@@ -26,7 +60,7 @@ class StringLiteralFinder {
 
   /// Paths which should be ignored. Usually something like `l10n/' to ignore
   /// the actual translation files.
-  final List<String> excludePaths;
+  final List<ExcludePathChecker> excludePaths;
 
   final List<FoundStringLiteral> foundStringLiterals = [];
   final Set<String> filesSkipped = <String>{};
@@ -42,7 +76,7 @@ class StringLiteralFinder {
       for (final filePath in context.contextRoot.analyzedFiles()) {
         final relative = path.relative(filePath, from: basePath);
         if (excludePaths
-                .where((element) => relative.startsWith(element))
+                .where((element) => element.shouldExclude(relative))
                 .isNotEmpty ||
             // exclude generated code.
             filePath.endsWith('.g.dart')) {
@@ -118,6 +152,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         'package:flutter/src/painting/image_resolution.dart#AssetImage'),
     TypeChecker.fromUrl(
         'package:flutter/src/widgets/navigator.dart#RouteSettings'),
+    TypeChecker.fromRuntime(StateError),
     loggerChecker,
   ];
 
@@ -184,7 +219,9 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         node != null;
         nodeChildChild = nodeChild, nodeChild = node, node = node.parent) {
       try {
-        if (node is ImportDirective) {
+        if (node is ImportDirective ||
+            node is PartDirective ||
+            node is PartOfDirective) {
           return true;
         }
         if (node is InstanceCreationExpression) {

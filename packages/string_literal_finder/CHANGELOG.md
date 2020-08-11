@@ -1,3 +1,7 @@
+## UNRELEASED
+
+- Allow exclude suffix configuration.
+
 ## 0.1.1+4
 
 - Improve NonNls annotation checker for named parameters.
