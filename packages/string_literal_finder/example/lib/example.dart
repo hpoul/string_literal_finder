@@ -17,6 +17,7 @@ void main() {
   exampleFunc('Hello world', 'not translated');
   _logger.finer('Lorem ipsum');
 
+  // ignore: unused_local_variable
   final testMap = nonNls({
     'key': 'value',
   });

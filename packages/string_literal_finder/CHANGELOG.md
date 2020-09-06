@@ -1,6 +1,7 @@
-## UNRELEASED
+## 0.2.0
 
 - Allow exclude suffix configuration.
+- Generate a github annotations file for https://github.com/Attest/annotations-action/
 
 ## 0.1.1+4
 
@@ -21,7 +22,7 @@
 
 ## 0.1.1
 
-- Updated documentation and made available through `pub global`
+- Update documentation and made available through `pub global`
 
 ## 0.1.0
 

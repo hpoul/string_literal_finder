@@ -103,10 +103,11 @@ class StringLiteralFinder {
     final unit = result.unit;
     final visitor = StringLiteralVisitor<dynamic>(
         unit: unit,
-        foundStringLiteral: (loc, stringLiteral) {
+        foundStringLiteral: (loc, locEnd, stringLiteral) {
           foundStringLiterals.add(FoundStringLiteral(
             filePath: filePath,
             loc: loc,
+            locEnd: locEnd,
             stringValue: stringLiteral.stringValue,
             stringLiteral: stringLiteral,
           ));
@@ -124,6 +125,7 @@ class FoundStringLiteral {
   FoundStringLiteral({
     @required this.filePath,
     @required this.loc,
+    @required this.locEnd,
     @required this.stringValue,
     @required this.stringLiteral,
   });
@@ -133,6 +135,9 @@ class FoundStringLiteral {
 
   /// line/column of the beginning of the string literal.
   final CharacterLocation loc;
+
+  /// line/column of the end of the string literal.
+  final CharacterLocation locEnd;
 
   /// The actual value of the string, better to use [stringLiteral].
   final String stringValue;
@@ -147,19 +152,22 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 
   static const loggerChecker = TypeChecker.fromRuntime(Logger);
   static const nonNlsChecker = TypeChecker.fromRuntime(NonNlsArg);
+  static const exceptionChecker = TypeChecker.fromRuntime(Exception);
   static const ignoredConstructorCalls = [
     TypeChecker.fromUrl(
         'package:flutter/src/painting/image_resolution.dart#AssetImage'),
     TypeChecker.fromUrl(
         'package:flutter/src/widgets/navigator.dart#RouteSettings'),
+    TypeChecker.fromUrl('package:flutter/src/foundation/key.dart#ValueKey'),
     TypeChecker.fromRuntime(StateError),
     loggerChecker,
+    exceptionChecker,
   ];
 
   final CompilationUnit unit;
   final LineInfo lineInfo;
-  final void Function(CharacterLocation loc, StringLiteral stringLiteral)
-      foundStringLiteral;
+  final void Function(CharacterLocation loc, CharacterLocation locEnd,
+      StringLiteral stringLiteral) foundStringLiteral;
 
   @override
   R visitStringLiteral(StringLiteral node) {
@@ -174,6 +182,8 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     final lineInfo = unit.lineInfo;
     final loc =
         lineInfo.getLocation(node.beginToken.charOffset) as CharacterLocation;
+    final locEnd =
+        lineInfo.getLocation(node.endToken.charEnd) as CharacterLocation;
 
     final next = node.endToken.next;
     final nextNext = next?.next;
@@ -184,7 +194,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
          - next: $next
          - nextNext: $nextNext 
          - precedingComments: ${node.beginToken.precedingComments}''');
-    foundStringLiteral(loc, node);
+    foundStringLiteral(loc, locEnd, node);
     return super.visitStringLiteral(node);
   }
 
