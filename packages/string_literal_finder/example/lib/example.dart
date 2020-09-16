@@ -12,13 +12,22 @@ class Example {
 
 void exampleFunc(@NonNls String ignored, String warning) {}
 
+// parameters to annotations are ignored.
+@SomeAnnotation('test')
 void main() {
   const Example('Lorem ipsum');
   exampleFunc('Hello world', 'not translated');
   _logger.finer('Lorem ipsum');
 
-  // ignore: unused_local_variable
+  @NonNls
   final testMap = nonNls({
     'key': 'value',
   });
+  // since `testMap` is annotated with @NonNls, accessing the key with
+  // a string literal will be ignored.
+  print(testMap['key']);
+}
+
+class SomeAnnotation {
+  const SomeAnnotation(String test);
 }

@@ -1,7 +1,13 @@
+## 0.2.1
+
+* Ignore index accesses for variables annotated with `@NonNls`.
+* Ignore string literals in annotations `@SomeAnnotation('test')`.
+
 ## 0.2.0
 
-- Allow exclude suffix configuration.
-- Generate a github annotations file for https://github.com/Attest/annotations-action/
+* Allow exclude suffix configuration.
+* Generate a github annotations file for https://github.com/Attest/annotations-action/
+
 
 ## 0.1.1+4
 

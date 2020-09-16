@@ -153,7 +153,10 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   static const loggerChecker = TypeChecker.fromRuntime(Logger);
   static const nonNlsChecker = TypeChecker.fromRuntime(NonNlsArg);
   static const exceptionChecker = TypeChecker.fromRuntime(Exception);
+  static const errorChecker = TypeChecker.fromRuntime(Error);
   static const ignoredConstructorCalls = [
+    TypeChecker.fromRuntime(Uri),
+    TypeChecker.fromRuntime(RegExp),
     TypeChecker.fromUrl(
         'package:flutter/src/painting/image_resolution.dart#AssetImage'),
     TypeChecker.fromUrl(
@@ -162,6 +165,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     TypeChecker.fromRuntime(StateError),
     loggerChecker,
     exceptionChecker,
+    errorChecker,
   ];
 
   final CompilationUnit unit;
@@ -233,6 +237,18 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             node is PartDirective ||
             node is PartOfDirective) {
           return true;
+        }
+        if (node is Annotation) {
+          _logger.finest('Ignoring annotation parameters $node');
+          return true;
+        }
+        if (node is IndexExpression) {
+          final target = node.realTarget;
+          if (target is SimpleIdentifier) {
+            if (nonNlsChecker.hasAnnotationOf(target.staticElement)) {
+              return true;
+            }
+          }
         }
         if (node is InstanceCreationExpression) {
           assert(nodeChild == node.argumentList);

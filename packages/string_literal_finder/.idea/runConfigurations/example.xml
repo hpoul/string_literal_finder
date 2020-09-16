@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="example" type="DartCommandLineRunConfigurationType" factoryName="Dart Command Line Application">
+    <option name="arguments" value="-v --path example/lib" />
+    <option name="filePath" value="$PROJECT_DIR$/bin/string_literal_finder.dart" />
+    <method v="2" />
+  </configuration>
+</component>
