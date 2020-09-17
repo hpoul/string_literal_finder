@@ -162,6 +162,8 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     TypeChecker.fromUrl(
         'package:flutter/src/widgets/navigator.dart#RouteSettings'),
     TypeChecker.fromUrl('package:flutter/src/foundation/key.dart#ValueKey'),
+    TypeChecker.fromUrl(
+        'package:flutter/src/services/platform_channel.dart#MethodChannel'),
     TypeChecker.fromRuntime(StateError),
     loggerChecker,
     exceptionChecker,
