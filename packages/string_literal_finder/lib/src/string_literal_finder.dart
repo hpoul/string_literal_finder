@@ -39,7 +39,8 @@ abstract class ExcludePathChecker {
 
 @immutable
 class _ExcludePathCheckerImpl extends ExcludePathChecker {
-  const _ExcludePathCheckerImpl({this.predicate, this.description});
+  const _ExcludePathCheckerImpl(
+      {required this.predicate, required this.description});
   final bool Function(String path) predicate;
   final String description;
 
@@ -52,8 +53,8 @@ class _ExcludePathCheckerImpl extends ExcludePathChecker {
 /// Some literals will be (smartly) ignored which should not be localized.
 class StringLiteralFinder {
   StringLiteralFinder({
-    this.basePath,
-    this.excludePaths,
+    required this.basePath,
+    required this.excludePaths,
   });
 
   /// Base path of the library.
@@ -104,8 +105,9 @@ class StringLiteralFinder {
     if (result is! ResolvedUnitResult) {
       throw StateError('Did not resolve to valid unit.');
     }
-    final unit = (result as ResolvedUnitResult).unit;
+    final unit = result.unit!;
     final visitor = StringLiteralVisitor<dynamic>(
+        filePath: filePath,
         unit: unit,
         foundStringLiteral: (loc, locEnd, stringLiteral) {
           foundStringLiterals.add(FoundStringLiteral(
@@ -127,11 +129,11 @@ class StringLiteralFinder {
 /// Information about a string literal found in dart code.
 class FoundStringLiteral {
   FoundStringLiteral({
-    @required this.filePath,
-    @required this.loc,
-    @required this.locEnd,
-    @required this.stringValue,
-    @required this.stringLiteral,
+    required this.filePath,
+    required this.loc,
+    required this.locEnd,
+    required this.stringValue,
+    required this.stringLiteral,
   });
 
   /// absolute file path to the file in which the string literal was found.
@@ -144,15 +146,18 @@ class FoundStringLiteral {
   final CharacterLocation locEnd;
 
   /// The actual value of the string, better to use [stringLiteral].
-  final String stringValue;
+  final String? stringValue;
 
   /// The string literal from the analyser.
   final StringLiteral stringLiteral;
 }
 
 class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
-  StringLiteralVisitor({this.unit, this.foundStringLiteral})
-      : lineInfo = unit.lineInfo;
+  StringLiteralVisitor({
+    required this.filePath,
+    required this.unit,
+    required this.foundStringLiteral,
+  }) : lineInfo = unit.lineInfo;
 
   static const loggerChecker = TypeChecker.fromRuntime(Logger);
   static const nonNlsChecker = TypeChecker.fromRuntime(NonNlsArg);
@@ -174,13 +179,14 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     errorChecker,
   ];
 
+  final String filePath;
   final CompilationUnit unit;
-  final LineInfo lineInfo;
+  final LineInfo? lineInfo;
   final void Function(CharacterLocation loc, CharacterLocation locEnd,
       StringLiteral stringLiteral) foundStringLiteral;
 
   @override
-  R visitStringLiteral(StringLiteral node) {
+  R? visitStringLiteral(StringLiteral node) {
 //    final previous = node.findPrevious(node.beginToken);
     final parent = node.parent;
     final pp = node.parent?.parent;
@@ -189,7 +195,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
       return null;
     }
 
-    final lineInfo = unit.lineInfo;
+    final lineInfo = unit.lineInfo!;
     final loc =
         lineInfo.getLocation(node.beginToken.charOffset) as CharacterLocation;
     final locEnd =
@@ -200,7 +206,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     _logger.finest(
         '''Found string literal (${loc.lineNumber}:${loc.columnNumber}) $node
          - parent: $parent (${parent.runtimeType})
-         - parentParent: $pp (${pp.runtimeType} / ${pp.parent?.runtimeType})
+         - parentParent: $pp (${pp.runtimeType} / ${pp!.parent?.runtimeType})
          - next: $next
          - nextNext: $nextNext 
          - precedingComments: ${node.beginToken.precedingComments}''');
@@ -209,19 +215,19 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   }
 
   bool _checkArgumentAnnotation(ArgumentList argumentList,
-      ExecutableElement executableElement, Expression nodeChildChild) {
+      ExecutableElement? executableElement, Expression nodeChildChild) {
     final argPos = argumentList.arguments.indexOf(nodeChildChild);
     assert(argPos != -1);
     final arg = argumentList.arguments[argPos];
     ParameterElement param;
     if (arg is NamedExpression) {
-      param = executableElement.parameters.firstWhere(
+      param = executableElement!.parameters.firstWhere(
           (element) => element.isNamed && element.name == arg.name.label.name,
           orElse: () => throw StateError(
               'Unable to find parameter of name ${arg.name.label} for '
               '$executableElement'));
     } else {
-      param = executableElement.parameters[argPos];
+      param = executableElement!.parameters[argPos];
       assert(param.isPositional);
     }
     if (nonNlsChecker.hasAnnotationOf(param)) {
@@ -232,9 +238,9 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   }
 
   bool _shouldIgnore(AstNode origNode) {
-    var node = origNode;
-    AstNode nodeChild;
-    AstNode nodeChildChild;
+    AstNode? node = origNode;
+    AstNode? nodeChild;
+    AstNode? nodeChildChild;
     for (;
         node != null;
         nodeChildChild = nodeChild, nodeChild = node, node = node.parent) {
@@ -251,8 +257,15 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         if (node is IndexExpression) {
           final target = node.realTarget;
           if (target is SimpleIdentifier) {
-            if (nonNlsChecker.hasAnnotationOf(target.staticElement)) {
-              return true;
+            try {
+              if (nonNlsChecker.hasAnnotationOf(target.staticElement!)) {
+                return true;
+              }
+            } catch (e, stackTrace) {
+              _logger.warning(
+                  'Unable to check annotation for $origNode at $filePath',
+                  e,
+                  stackTrace);
             }
           }
         }
@@ -268,7 +281,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 //          node.constructorName.staticElement;
           for (final ignoredConstructorCall in ignoredConstructorCalls) {
             if (ignoredConstructorCall
-                .isAssignableFrom(node.staticType.element)) {
+                .isAssignableFrom(node.staticType!.element!)) {
               return true;
             }
           }
@@ -278,8 +291,8 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             _logger.warning('not an expression. $nodeChildChild ($node)');
           } else if (_checkArgumentAnnotation(
               node.argumentList,
-              node.methodName.staticElement as ExecutableElement,
-              nodeChildChild as Expression)) {
+              node.methodName.staticElement as ExecutableElement?,
+              nodeChildChild)) {
             return true;
           }
           final target = node.target;
@@ -287,27 +300,27 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             // ignore all calls to `Logger`
             if (target.staticType == null) {
               _logger.warning('Unable to resolve type for $target');
-            } else if (loggerChecker.isAssignableFromType(target.staticType)) {
+            } else if (loggerChecker.isAssignableFromType(target.staticType!)) {
               return true;
             }
           }
         }
       } catch (e, stackTrace) {
-        final loc = lineInfo.getLocation(origNode.offset);
-        _logger.severe(
-            'Error while analysing node $origNode at $loc', e, stackTrace);
+        final loc = lineInfo!.getLocation(origNode.offset);
+        _logger.severe('Error while analysing node $origNode at $filePath $loc',
+            e, stackTrace);
       }
     }
     // see if we can find a line end comment.
-    final lineNumber = lineInfo.getLocation(origNode.end).lineNumber;
+    final lineNumber = lineInfo!.getLocation(origNode.end).lineNumber;
     var nextToken = origNode.endToken.next;
     while (nextToken != null &&
-        lineInfo.getLocation(nextToken.offset).lineNumber == lineNumber) {
+        lineInfo!.getLocation(nextToken.offset).lineNumber == lineNumber) {
       nextToken = nextToken.next;
     }
-    final comment = nextToken.precedingComments;
+    final comment = nextToken!.precedingComments;
     if (comment != null &&
-        lineInfo.getLocation(comment.offset).lineNumber == lineNumber) {
+        lineInfo!.getLocation(comment.offset).lineNumber == lineNumber) {
       if (comment.value().contains('NON-NLS')) {
         return true;
       }

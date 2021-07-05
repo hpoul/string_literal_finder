@@ -71,9 +71,9 @@ Future<void> main(List<String> arguments) async {
     );
     final foundStringLiterals = await stringLiteralFinder.start();
 
-    await (results[ARG_ANNOTATION_FILE] as String)?.let((file) =>
+    await (results[ARG_ANNOTATION_FILE] as String?)?.let((file) =>
         _generateAnnotationsFile(file, foundStringLiterals,
-            pathRelativeFrom: results[ARG_ANNOTATION_ROOT] as String));
+            pathRelativeFrom: results[ARG_ANNOTATION_ROOT] as String?));
 
     final fileCount = foundStringLiterals.map((e) => e.filePath).toSet();
     final nonLiteralFiles =
@@ -91,7 +91,7 @@ Future<void> main(List<String> arguments) async {
     };
     final jsonMetrics = const JsonEncoder.withIndent('  ').convert(result);
     print(jsonMetrics);
-    await (results[ARG_METRICS_FILE] as String)?.let(
+    await (results[ARG_METRICS_FILE] as String?)?.let(
         (metricsFile) async => File(metricsFile).writeAsString(jsonMetrics));
     if (foundStringLiterals.isNotEmpty) {
       exitCode = 1;
@@ -109,12 +109,12 @@ Future<void> main(List<String> arguments) async {
 Future<void> _generateAnnotationsFile(
   String file,
   List<FoundStringLiteral> foundStringLiterals, {
-  String pathRelativeFrom,
+  String? pathRelativeFrom,
 }) async {
   print('ok?');
   final pathValue = pathRelativeFrom
           ?.let((from) => (String p) => path.relative(p, from: from)) ??
-      (String p) => p;
+      ((String p) => p);
   final annotations = foundStringLiterals
       .map(
         (e) => {

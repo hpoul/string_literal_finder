@@ -1,3 +1,7 @@
+## 0.3.0
+
+* Migrate to null safety.
+
 ## 0.2.1
 
 * Ignore index accesses for variables annotated with `@NonNls`.
