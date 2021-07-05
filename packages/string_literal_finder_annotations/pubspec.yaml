@@ -1,6 +1,6 @@
 name: string_literal_finder_annotations
 description: Annotations for methods and strings to mark them as non-translatable.
-version: 0.1.1+1
+version: 1.0.0
 homepage: https://github.com/hpoul/string_literal_finder/tree/master/packages/string_literal_finder
 
 environment:

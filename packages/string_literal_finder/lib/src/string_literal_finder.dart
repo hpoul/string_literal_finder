@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
@@ -99,8 +100,11 @@ class StringLiteralFinder {
       AnalysisContext context, String filePath) async {
     _logger.fine('analyzing $filePath');
 //    final result = context.currentSession.getParsedUnit(filePath);
-    final result = await context.currentSession.getResolvedUnit(filePath);
-    final unit = result.unit;
+    final result = await context.currentSession.getResolvedUnit2(filePath);
+    if (result is! ResolvedUnitResult) {
+      throw StateError('Did not resolve to valid unit.');
+    }
+    final unit = (result as ResolvedUnitResult).unit;
     final visitor = StringLiteralVisitor<dynamic>(
         unit: unit,
         foundStringLiteral: (loc, locEnd, stringLiteral) {

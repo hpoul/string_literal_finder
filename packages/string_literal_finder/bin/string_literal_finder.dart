@@ -3,12 +3,11 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
+import 'package:path/path.dart' as path;
 import 'package:string_literal_finder/src/string_literal_finder.dart';
 import 'package:string_literal_finder/string_literal_finder.dart';
-import 'package:path/path.dart' as path;
-
-import 'package:logging/logging.dart';
 
 final _logger = Logger('string_literal_finder');
 
@@ -53,7 +52,9 @@ Future<void> main(List<String> arguments) async {
     PrintAppender.setupLogging(
         level: results[ARG_SILENT] as bool
             ? Level.SEVERE
-            : results[ARG_VERBOSE] as bool ? Level.ALL : Level.FINE);
+            : results[ARG_VERBOSE] as bool
+                ? Level.ALL
+                : Level.FINE);
     if (results[ARG_PATH] == null) {
       throw UsageException('Required $ARG_PATH parameter.', parser.usage);
     }
