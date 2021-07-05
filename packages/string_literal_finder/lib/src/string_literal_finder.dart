@@ -289,10 +289,19 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         if (node is MethodInvocation) {
           if (nodeChildChild is! Expression) {
             _logger.warning('not an expression. $nodeChildChild ($node)');
-          } else if (_checkArgumentAnnotation(
-              node.argumentList,
-              node.methodName.staticElement as ExecutableElement?,
-              nodeChildChild)) {
+            // } else if (nodeChildChild != origNode) {
+            //   we only care about direct method calls.
+          } else if (
+              // check if `nodeChildChild` is actually a full argument.
+              // this can happen with sub expressions like
+              // myFunc('string'.split('').join('')); where
+              // `string'.split('')` will not be found in the parent expression.
+              node.argumentList.arguments.contains(nodeChildChild) &&
+                  // check if the argument is annotated
+                  _checkArgumentAnnotation(
+                      node.argumentList,
+                      node.methodName.staticElement as ExecutableElement?,
+                      nodeChildChild)) {
             return true;
           }
           final target = node.target;

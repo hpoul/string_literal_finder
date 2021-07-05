@@ -17,7 +17,12 @@ void exampleFunc(@NonNls String ignored, String warning) {}
 void main() {
   const Example('Lorem ipsum');
   exampleFunc('Hello world', 'not translated');
+  exampleFunc('lorem'.split('').join(''), 'not translated2'.split('').join(''));
   _logger.finer('Lorem ipsum');
+
+  nonNls({
+    'nonNlsKey1': 'nonNlsValue1',
+  });
 
   @NonNls
   final testMap = nonNls({
