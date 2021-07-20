@@ -18,6 +18,7 @@ import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:string_literal_finder/src/string_literal_finder.dart';
 import 'package:yaml/yaml.dart';
+import 'package:path/path.dart' as p;
 
 final _logger = Logger('string_literal_finder.plugin');
 
@@ -34,6 +35,8 @@ class StringLiteralFinderPlugin extends ServerPlugin {
   String get version => '1.0.0';
 
   var _filesFromSetPriorityFilesRequest = <String>[];
+
+  final Map<AnalysisDriverGeneric, AnalysisOptions> _options = {};
 
   @override
   AnalysisDriverGeneric createAnalysisDriver(plugin.ContextRoot contextRoot) {
@@ -67,7 +70,8 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     final context = analysisContext as DriverBasedAnalysisContext;
     final dartDriver = context.driver;
     try {
-      final analysisOptions = _getAnalysisOptions(dartDriver);
+      final analysisOptions =
+          (_options[dartDriver] ??= _getAnalysisOptions(dartDriver));
 
       runZonedGuarded(
         () {
@@ -113,15 +117,15 @@ class StringLiteralFinderPlugin extends ServerPlugin {
         return plugin.EditGetFixesResult([]);
       }
 
-      final fixes =
-          _check(analysisResult.path!, analysisResult.unit!, analysisResult)
-              .where((fix) =>
-                  fix.error.location.file == parameters.file &&
-                  fix.error.location.offset <= parameters.offset &&
-                  parameters.offset <=
-                      fix.error.location.offset + fix.error.location.length &&
-                  fix.fixes.isNotEmpty)
-              .toList();
+      final fixes = _check(driver, analysisResult.path!, analysisResult.unit!,
+              analysisResult)
+          .where((fix) =>
+              fix.error.location.file == parameters.file &&
+              fix.error.location.offset <= parameters.offset &&
+              parameters.offset <=
+                  fix.error.location.offset + fix.error.location.length &&
+              fix.fixes.isNotEmpty)
+          .toList();
 
       return plugin.EditGetFixesResult(fixes);
     } on Exception catch (e, stackTrace) {
@@ -166,7 +170,7 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     }
 
     try {
-      final errors = _check(path, unit, analysisResult);
+      final errors = _check(dartDriver, path, unit, analysisResult);
 
       channel.sendNotification(
         plugin.AnalysisErrorsParams(
@@ -186,12 +190,22 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     }
   }
 
-  List<plugin.AnalysisErrorFixes> _check(
-      String path, CompilationUnit unit, ResolvedUnitResult analysisResult) {
+  List<plugin.AnalysisErrorFixes> _check(AnalysisDriver driver, String filePath,
+      CompilationUnit unit, ResolvedUnitResult analysisResult) {
     final errors = <plugin.AnalysisErrorFixes>[];
 
+    final root = driver.analysisContext?.contextRoot.root.path;
+    var relative = '';
+    if (root != null) {
+      relative = p.relative(filePath, from: root);
+      final options = _options[driver];
+      if (options != null && options.isExcluded(relative)) {
+        return [];
+      }
+    }
+
     final visitor = StringLiteralVisitor<dynamic>(
-      filePath: path,
+      filePath: filePath,
       unit: unit,
       foundStringLiteral: (foundStringLiteral) {
         final location = plugin.Location(
@@ -217,7 +231,7 @@ class StringLiteralFinderPlugin extends ServerPlugin {
               'Add // NON-NLS',
               edits: [
                 plugin.SourceFileEdit(
-                  path,
+                  filePath,
                   analysisResult.libraryElement.source.modificationStamp,
                   edits: [
                     plugin.SourceEdit(semicolonOffset + 1, 0, ' // NON-NLS'),
@@ -252,7 +266,7 @@ class StringLiteralFinderPlugin extends ServerPlugin {
                 'found_string_literal',
                 correction:
                     'Externalize string or add nonNls() decorator method, '
-                    'or add // NON-NLS to end of line.',
+                    'or add // NON-NLS to end of line. ($filePath) ($relative)',
                 hasFix: fix != null,
               ),
               fixes: fix == null ? [] : [fix]),
