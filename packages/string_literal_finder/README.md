@@ -7,7 +7,7 @@ Tries to be smart about ignoring specific strings.
 
 ## Installation & Usage
 
-```console
+```shell
 $ pub global activate string_literal_finder
 $ pub global run string_literal_finder --path=example
 2020-08-08 15:11:31.273227 INFO string_literal_finder - Found 1 literals:
@@ -23,6 +23,7 @@ configuring `string_literal_finder` as a analyyer plugin.
 ![IDE Warnings](_doc/string_literal_warning.png)
 
 1. Install dev dependency
+
     ```shell
     flutter pub add --dev string_literal_finder
 
@@ -30,14 +31,18 @@ configuring `string_literal_finder` as a analyyer plugin.
     dev_dependencies:
       string_literal_finder: ^1.0.0 # Make sure to use the latest version.
     ```
+
 2. Configure `analysis_options.yaml`
+
     ```yaml
     analyzer:
       plugins:
         - string_literal_finder
 
     ```
+
 3. Restart your analyser.
+
     ![Restart analyzer](_doc/restart_analyzer.png)
 
 
