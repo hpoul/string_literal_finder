@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:analyzer/dart/analysis/context_builder.dart';
 import 'package:analyzer/dart/analysis/context_locator.dart';
@@ -65,28 +66,38 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     // ignore: avoid_as
     final context = analysisContext as DriverBasedAnalysisContext;
     final dartDriver = context.driver;
-    final analysisOptions = _getAnalysisOptions(dartDriver);
+    try {
+      final analysisOptions = _getAnalysisOptions(dartDriver);
 
-    runZonedGuarded(
-      () {
-        dartDriver.results.listen((analysisResult) {
-          _processResult(
-            dartDriver,
-            analysisOptions,
-            analysisResult,
+      runZonedGuarded(
+        () {
+          dartDriver.results.listen((analysisResult) {
+            _processResult(
+              dartDriver,
+              analysisOptions,
+              analysisResult,
+            );
+          });
+        },
+        (Object e, StackTrace stackTrace) {
+          channel.sendNotification(
+            plugin.PluginErrorParams(
+              false,
+              'string_literal_finder. Unexpected error: ${e.toString()}',
+              stackTrace.toString(),
+            ).toNotification(),
           );
-        });
-      },
-      (Object e, StackTrace stackTrace) {
-        channel.sendNotification(
-          plugin.PluginErrorParams(
-            false,
-            'cool_linter. Unexpected error: ${e.toString()}',
-            stackTrace.toString(),
-          ).toNotification(),
-        );
-      },
-    );
+        },
+      );
+    } catch (e, stackTrace) {
+      channel.sendNotification(
+        plugin.PluginErrorParams(
+          false,
+          'string_literal_finder. Unexpected error: ${e.toString()}',
+          stackTrace.toString(),
+        ).toNotification(),
+      );
+    }
 
     return dartDriver;
   }
@@ -259,16 +270,7 @@ class StringLiteralFinderPlugin extends ServerPlugin {
       _logger.warning('Unable to resolve optionsFile.');
       return AnalysisOptions(excludeGlobs: []);
     }
-    final yaml =
-        loadYaml(optionsPath.readAsStringSync()) as Map<String, dynamic>;
-    final options = yaml['string_literal_finder'] as Map<String, dynamic>?;
-    final excludeGlobs = options?['exclude_globs'] as List<dynamic>?;
-    if (options == null || excludeGlobs == null) {
-      return AnalysisOptions(excludeGlobs: []);
-    }
-    return AnalysisOptions(
-      excludeGlobs: excludeGlobs.cast<String>().map((e) => Glob(e)).toList(),
-    );
+    return AnalysisOptions.loadFromYaml(optionsPath.readAsStringSync());
   }
 
   // @override
@@ -344,6 +346,19 @@ class StringLiteralFinderPlugin extends ServerPlugin {
 
 class AnalysisOptions {
   AnalysisOptions({required this.excludeGlobs});
+
+  static AnalysisOptions loadFromYaml(String yamlSource) {
+    final yaml =
+        json.decode(json.encode(loadYaml(yamlSource))) as Map<String, dynamic>;
+    final options = yaml['string_literal_finder'] as Map<String, dynamic>?;
+    final excludeGlobs = options?['exclude_globs'] as List<dynamic>?;
+    if (options == null || excludeGlobs == null) {
+      return AnalysisOptions(excludeGlobs: []);
+    }
+    return AnalysisOptions(
+      excludeGlobs: excludeGlobs.cast<String>().map((e) => Glob(e)).toList(),
+    );
+  }
 
   final List<Glob> excludeGlobs;
 

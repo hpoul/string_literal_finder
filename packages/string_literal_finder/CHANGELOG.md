@@ -1,4 +1,4 @@
-## 1.0.0+1
+## 1.0.0+2
 
 * Allow configuring analysis_options.yaml additional `exclude_globs`
 
