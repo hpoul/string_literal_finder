@@ -1,4 +1,4 @@
-## 1.0.0-dev.1
+## 1.0.0-dev.2
 
 * Allow usage as analyser plugin.
 

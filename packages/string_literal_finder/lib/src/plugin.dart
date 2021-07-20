@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:analyzer/dart/analysis/context_builder.dart';
 import 'package:analyzer/dart/analysis/context_locator.dart';
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/file_system/file_system.dart';
 // ignore: implementation_imports
 import 'package:analyzer/src/dart/analysis/driver.dart'
@@ -10,7 +11,7 @@ import 'package:analyzer/src/dart/analysis/driver.dart'
 // ignore: implementation_imports
 import 'package:analyzer/src/dart/analysis/driver_based_analysis_context.dart';
 import 'package:analyzer_plugin/plugin/plugin.dart';
-import 'package:analyzer_plugin/protocol/protocol_common.dart';
+import 'package:analyzer_plugin/protocol/protocol_common.dart' as plugin;
 import 'package:analyzer_plugin/protocol/protocol_generated.dart' as plugin;
 import 'package:logging/logging.dart';
 import 'package:string_literal_finder/src/string_literal_finder.dart';
@@ -86,6 +87,38 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     return dartDriver;
   }
 
+  @override
+  Future<plugin.EditGetFixesResult> handleEditGetFixes(
+      plugin.EditGetFixesParams parameters) async {
+    try {
+      final driver = driverForPath(parameters.file) as AnalysisDriver;
+      final analysisResult = await driver.getResult2(parameters.file);
+
+      if (analysisResult is! ResolvedUnitResult) {
+        return plugin.EditGetFixesResult([]);
+      }
+
+      final fixes =
+          _check(analysisResult.path!, analysisResult.unit!, analysisResult)
+              .where((fix) =>
+                  fix.error.location.file == parameters.file &&
+                  fix.error.location.offset <= parameters.offset &&
+                  parameters.offset <=
+                      fix.error.location.offset + fix.error.location.length &&
+                  fix.fixes.isNotEmpty)
+              .toList();
+
+      return plugin.EditGetFixesResult(fixes);
+    } on Exception catch (e, stackTrace) {
+      channel.sendNotification(
+        plugin.PluginErrorParams(false, e.toString(), stackTrace.toString())
+            .toNotification(),
+      );
+
+      return plugin.EditGetFixesResult([]);
+    }
+  }
+
   void _processResult(
       AnalysisDriver dartDriver, ResolvedUnitResult analysisResult) {
     final path = analysisResult.path;
@@ -95,11 +128,16 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     }
 
     final unit = analysisResult.unit;
-    if (unit == null) {
+    final isAnalyzed =
+        dartDriver.analysisContext?.contextRoot.isAnalyzed(path) ?? false;
+    if (unit == null || !isAnalyzed) {
+      if (unit != null) {
+        _logger.finer('is not analyzed: $path');
+      }
       channel.sendNotification(
         plugin.AnalysisErrorsParams(
           path,
-          <AnalysisError>[],
+          <plugin.AnalysisError>[],
         ).toNotification(),
       );
       _logger.warning('No unit for analysisResult.');
@@ -107,35 +145,12 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     }
 
     try {
-      final errors = <AnalysisError>[];
-      final visitor = StringLiteralVisitor<dynamic>(
-        filePath: path,
-        unit: unit,
-        foundStringLiteral: (foundStringLiteral) {
-          final location = Location(
-            foundStringLiteral.filePath,
-            foundStringLiteral.charOffset,
-            foundStringLiteral.charLength,
-            foundStringLiteral.loc.lineNumber,
-            foundStringLiteral.loc.columnNumber,
-            foundStringLiteral.locEnd.lineNumber,
-            foundStringLiteral.locEnd.columnNumber,
-          );
-          errors.add(AnalysisError(
-            AnalysisErrorSeverity('WARNING'),
-            AnalysisErrorType.LINT,
-            location,
-            'Found string literal',
-            'found_string_literal',
-          ));
-        },
-      );
-      unit.visitChildren(visitor);
+      final errors = _check(path, unit, analysisResult);
 
       channel.sendNotification(
         plugin.AnalysisErrorsParams(
           path,
-          errors,
+          errors.map((e) => e.error).toList(),
         ).toNotification(),
       );
     } catch (e, stackTrace) {
@@ -148,6 +163,69 @@ class StringLiteralFinderPlugin extends ServerPlugin {
         ).toNotification(),
       );
     }
+  }
+
+  List<plugin.AnalysisErrorFixes> _check(
+      String path, CompilationUnit unit, ResolvedUnitResult analysisResult) {
+    final errors = <plugin.AnalysisErrorFixes>[];
+
+    final visitor = StringLiteralVisitor<dynamic>(
+      filePath: path,
+      unit: unit,
+      foundStringLiteral: (foundStringLiteral) {
+        final location = plugin.Location(
+          foundStringLiteral.filePath,
+          foundStringLiteral.charOffset,
+          foundStringLiteral.charLength,
+          foundStringLiteral.loc.lineNumber,
+          foundStringLiteral.loc.columnNumber,
+          foundStringLiteral.locEnd.lineNumber,
+          foundStringLiteral.locEnd.columnNumber,
+        );
+
+        plugin.PrioritizedSourceChange? fix;
+        final content = analysisResult.content;
+        if (content != null) {
+          final semicolonOffset = content.lastIndexOf(
+              ';',
+              analysisResult.lineInfo
+                  .getOffsetOfLineAfter(foundStringLiteral.charEnd));
+          fix = plugin.PrioritizedSourceChange(
+            1,
+            plugin.SourceChange(
+              'Add // NON-NLS',
+              edits: [
+                plugin.SourceFileEdit(
+                  path,
+                  analysisResult.libraryElement.source.modificationStamp,
+                  edits: [
+                    plugin.SourceEdit(semicolonOffset + 1, 0, ' // NON-NLS'),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }
+
+        errors.add(
+          plugin.AnalysisErrorFixes(
+              plugin.AnalysisError(
+                plugin.AnalysisErrorSeverity('WARNING'),
+                plugin.AnalysisErrorType.LINT,
+                location,
+                'Found string literal: ${foundStringLiteral.stringValue}',
+                'found_string_literal',
+                correction:
+                    'Externalize string or add nonNls() decorator method, '
+                    'or add // NON-NLS to end of line.',
+                hasFix: fix != null,
+              ),
+              fixes: fix == null ? [] : [fix]),
+        );
+      },
+    );
+    unit.visitChildren(visitor);
+    return errors;
   }
 
   // @override
