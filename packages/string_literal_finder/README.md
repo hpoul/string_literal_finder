@@ -1,6 +1,6 @@
 # string_literal_finder
 
-Simple command line application to find non translated string literals
+Simple command line application and **analyzer plugin** to find non translated string literals
 in dart code. Makes sure when localizing your app that you externalized all strings.
 
 Tries to be smart about ignoring specific strings.
@@ -14,6 +14,32 @@ $ pub global run string_literal_finder --path=example
 2020-08-08 15:11:31.274592 INFO string_literal_finder - lib/example.dart:17:30 'not translated'
 Found 1 literals in 1 files.
 ```
+
+## Integration with IDE analyzer
+
+It is possible to get the warnings directly in your IDE by
+configuring `string_literal_finder` as a analyyer plugin.
+
+![IDE Warnings](_doc/string_literal_warning.png)
+
+1. Install dev dependency
+    ```shell
+    flutter pub add --dev string_literal_finder
+
+    # The above will add the following to your pubspec.yaml
+    dev_dependencies:
+      string_literal_finder: ^1.0.0 # Make sure to use the latest version.
+    ```
+2. Configure `analysis_options.yaml`
+    ```yaml
+    analyzer:
+      plugins:
+        - string_literal_finder
+
+    ```
+3. Restart your analyser.
+    ![Restart analyzer](_doc/restart_analyzer.png)
+
 
 ## Example
 

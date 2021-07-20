@@ -207,13 +207,27 @@ class StringLiteralFinderPlugin extends ServerPlugin {
           );
         }
 
+        String stringValue() {
+          if (content == null || content.length < foundStringLiteral.charEnd) {
+            return '';
+          }
+          return content
+              .substring(
+                foundStringLiteral.charOffset,
+                foundStringLiteral.charEnd,
+              )
+              .trim();
+        }
+
+        final stringCode = foundStringLiteral.stringValue ?? stringValue();
+
         errors.add(
           plugin.AnalysisErrorFixes(
               plugin.AnalysisError(
                 plugin.AnalysisErrorSeverity('WARNING'),
                 plugin.AnalysisErrorType.LINT,
                 location,
-                'Found string literal: ${foundStringLiteral.stringValue}',
+                'Found string literal: $stringCode',
                 'found_string_literal',
                 correction:
                     'Externalize string or add nonNls() decorator method, '
