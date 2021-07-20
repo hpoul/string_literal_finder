@@ -1,3 +1,7 @@
+## 1.0.0+1
+
+* Allow configuring analysis_options.yaml additional `exclude_globs`
+
 ## 1.0.0
 
 * Allow usage as analyser plugin.

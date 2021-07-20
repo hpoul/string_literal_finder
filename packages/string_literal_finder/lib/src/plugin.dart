@@ -13,8 +13,10 @@ import 'package:analyzer/src/dart/analysis/driver_based_analysis_context.dart';
 import 'package:analyzer_plugin/plugin/plugin.dart';
 import 'package:analyzer_plugin/protocol/protocol_common.dart' as plugin;
 import 'package:analyzer_plugin/protocol/protocol_generated.dart' as plugin;
+import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:string_literal_finder/src/string_literal_finder.dart';
+import 'package:yaml/yaml.dart';
 
 final _logger = Logger('string_literal_finder.plugin');
 
@@ -63,12 +65,14 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     // ignore: avoid_as
     final context = analysisContext as DriverBasedAnalysisContext;
     final dartDriver = context.driver;
+    final analysisOptions = _getAnalysisOptions(dartDriver);
 
     runZonedGuarded(
       () {
         dartDriver.results.listen((analysisResult) {
           _processResult(
             dartDriver,
+            analysisOptions,
             analysisResult,
           );
         });
@@ -120,7 +124,10 @@ class StringLiteralFinderPlugin extends ServerPlugin {
   }
 
   void _processResult(
-      AnalysisDriver dartDriver, ResolvedUnitResult analysisResult) {
+    AnalysisDriver dartDriver,
+    AnalysisOptions analysisOptions,
+    ResolvedUnitResult analysisResult,
+  ) {
     final path = analysisResult.path;
     if (path == null) {
       _logger.warning('No path given for analysisResult.');
@@ -130,9 +137,13 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     final unit = analysisResult.unit;
     final isAnalyzed =
         dartDriver.analysisContext?.contextRoot.isAnalyzed(path) ?? false;
-    if (unit == null || !isAnalyzed) {
-      if (unit != null) {
-        _logger.finer('is not analyzed: $path');
+    final isExcluded = !isAnalyzed || analysisOptions.isExcluded(path);
+    if (unit == null || isExcluded) {
+      if (unit == null) {
+        _logger.warning('No unit for analysisResult.');
+      } else {
+        _logger.finer('is not analyzed: $path '
+            '(analyzed: $isAnalyzed / isExcluded: $isExcluded)');
       }
       channel.sendNotification(
         plugin.AnalysisErrorsParams(
@@ -140,7 +151,6 @@ class StringLiteralFinderPlugin extends ServerPlugin {
           <plugin.AnalysisError>[],
         ).toNotification(),
       );
-      _logger.warning('No unit for analysisResult.');
       return;
     }
 
@@ -242,6 +252,25 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     return errors;
   }
 
+  AnalysisOptions _getAnalysisOptions(AnalysisDriver analysisDriver) {
+    final optionsPath = analysisDriver.analysisContext?.contextRoot.optionsFile;
+    final exists = optionsPath?.exists ?? false;
+    if (!exists || optionsPath == null) {
+      _logger.warning('Unable to resolve optionsFile.');
+      return AnalysisOptions(excludeGlobs: []);
+    }
+    final yaml =
+        loadYaml(optionsPath.readAsStringSync()) as Map<String, dynamic>;
+    final options = yaml['string_literal_finder'] as Map<String, dynamic>?;
+    final excludeGlobs = options?['exclude_globs'] as List<dynamic>?;
+    if (options == null || excludeGlobs == null) {
+      return AnalysisOptions(excludeGlobs: []);
+    }
+    return AnalysisOptions(
+      excludeGlobs: excludeGlobs.cast<String>().map((e) => Glob(e)).toList(),
+    );
+  }
+
   // @override
   // void sendNotificationsForSubscriptions(
   //     Map<String, List<AnalysisService>> subscriptions) {
@@ -310,5 +339,15 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     filesByDriver.forEach((driver, files) {
       driver.priorityFiles = files;
     });
+  }
+}
+
+class AnalysisOptions {
+  AnalysisOptions({required this.excludeGlobs});
+
+  final List<Glob> excludeGlobs;
+
+  bool isExcluded(String path) {
+    return excludeGlobs.any((glob) => glob.matches(path));
   }
 }

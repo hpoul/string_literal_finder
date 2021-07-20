@@ -1,3 +1,7 @@
+[![Pub Version](https://badgen.net/pub/v/string_literal_finder)](https://pub.dev/packages/string_literal_finder/)
+[![Dart SDK Version](https://badgen.net/pub/sdk-version/string_literal_finder)](https://pub.dev/packages/string_literal_finder/)
+[![Pub popularity](https://badgen.net/pub/popularity/string_literal_finder)](https://pub.dev/packages/string_literal_finder/score)
+
 # string_literal_finder
 
 Simple command line application and **analyzer plugin** to find non translated string literals
@@ -39,6 +43,15 @@ configuring `string_literal_finder` as a analyyer plugin.
       plugins:
         - string_literal_finder
 
+    ```
+
+    optionally add additional exclude globs to `analysis_options.yaml`:
+
+    ```yaml
+    string_literal_finder:
+      exclude_globs:
+        - '**/*.g.dart'
+        - '**/*.freezed.dart'
     ```
 
 3. Restart your analyser.
