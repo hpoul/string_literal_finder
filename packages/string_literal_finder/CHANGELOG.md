@@ -1,3 +1,7 @@
+## 1.0.0-dev.1
+
+* Allow usage as analyser plugin.
+
 ## 0.3.0
 
 * Migrate to null safety.

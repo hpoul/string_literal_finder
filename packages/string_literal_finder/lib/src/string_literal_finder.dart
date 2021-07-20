@@ -109,14 +109,8 @@ class StringLiteralFinder {
     final visitor = StringLiteralVisitor<dynamic>(
         filePath: filePath,
         unit: unit,
-        foundStringLiteral: (loc, locEnd, stringLiteral) {
-          foundStringLiterals.add(FoundStringLiteral(
-            filePath: filePath,
-            loc: loc,
-            locEnd: locEnd,
-            stringValue: stringLiteral.stringValue,
-            stringLiteral: stringLiteral,
-          ));
+        foundStringLiteral: (foundStringLiteral) {
+          foundStringLiterals.add(foundStringLiteral);
         });
     unit.visitChildren(visitor);
 //    for (final unitMember in unit.declarations) {
@@ -150,6 +144,10 @@ class FoundStringLiteral {
 
   /// The string literal from the analyser.
   final StringLiteral stringLiteral;
+
+  int get charOffset => stringLiteral.beginToken.charOffset;
+  int get charEnd => stringLiteral.endToken.charEnd;
+  int get charLength => charEnd - charOffset;
 }
 
 class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
@@ -182,8 +180,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   final String filePath;
   final CompilationUnit unit;
   final LineInfo? lineInfo;
-  final void Function(CharacterLocation loc, CharacterLocation locEnd,
-      StringLiteral stringLiteral) foundStringLiteral;
+  final void Function(FoundStringLiteral foundStringLiteral) foundStringLiteral;
 
   @override
   R? visitStringLiteral(StringLiteral node) {
@@ -196,10 +193,10 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     }
 
     final lineInfo = unit.lineInfo!;
-    final loc =
-        lineInfo.getLocation(node.beginToken.charOffset) as CharacterLocation;
-    final locEnd =
-        lineInfo.getLocation(node.endToken.charEnd) as CharacterLocation;
+    final begin = node.beginToken.charOffset;
+    final end = node.endToken.charEnd;
+    final loc = lineInfo.getLocation(begin) as CharacterLocation;
+    final locEnd = lineInfo.getLocation(end) as CharacterLocation;
 
     final next = node.endToken.next;
     final nextNext = next?.next;
@@ -210,7 +207,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
          - next: $next
          - nextNext: $nextNext 
          - precedingComments: ${node.beginToken.precedingComments}''');
-    foundStringLiteral(loc, locEnd, node);
+    foundStringLiteral(FoundStringLiteral(
+      filePath: filePath,
+      loc: loc,
+      locEnd: locEnd,
+      stringValue: node.stringValue,
+      stringLiteral: node,
+    ));
     return super.visitStringLiteral(node);
   }
 
