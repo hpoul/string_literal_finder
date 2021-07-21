@@ -1,35 +1,69 @@
+import 'dart:io';
+
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/file_system/overlay_file_system.dart';
+import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:string_literal_finder/src/string_literal_finder.dart';
 import 'package:test/test.dart';
+import 'package:path/path.dart' as p;
 
 final _logger = Logger('string_literal_finder_test');
 
-List<FoundStringLiteral> _findStrings(String source) {
-  final parsed = parseString(content: source);
+Future<List<FoundStringLiteral>> _findStrings(String source) async {
+  final overlay = OverlayResourceProvider(PhysicalResourceProvider.INSTANCE);
+  final filePath = p.join(Directory.current.absolute.path, 'test/mytest.dart');
+  overlay.setOverlay(
+    filePath,
+    content: source,
+    modificationStamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+  );
+  // final parsed = parseString(content: source);
+  final parsed = await resolveFile2(path: filePath, resourceProvider: overlay)
+      as ResolvedUnitResult;
+  if (!parsed.exists) {
+    throw StateError('file not found?');
+  }
   final foundStrings = <FoundStringLiteral>[];
   final x = StringLiteralVisitor<dynamic>(
-    filePath: 'foo.dart',
-    unit: parsed.unit,
+    filePath: filePath,
+    unit: parsed.unit!,
     foundStringLiteral: (found) {
       foundStrings.add(found);
       _logger.fine('Found String ${found.stringValue}');
     },
   );
-  parsed.unit.visitChildren(x);
+  parsed.unit!.visitChildren(x);
   return foundStrings;
 }
 
 void main() {
   PrintAppender.setupLogging();
   group('simple finder test', () {
-    test('find string', () {
-      final found = _findStrings('''
+    test('find string', () async {
+      final found = await _findStrings('''
 final _string = 'example';
 ''');
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'example');
+    });
+    test('NON-NLS end of line comment', () async {
+      final found = await _findStrings('''
+      final _string = 'example'; // NON-NLS
+      ''');
+      expect(found, isEmpty);
+    });
+    test('nonNls() function', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      final _string = nonNls('ignored');
+      final _string2 = 'found';
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
     });
   });
 }
