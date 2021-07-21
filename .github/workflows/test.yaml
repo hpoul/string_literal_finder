@@ -1,0 +1,40 @@
+name: test and coverage
+
+on: [push]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: ['ubuntu-latest']
+        dart_channel: ['stable']
+
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+    - uses: cedx/setup-dart@v2
+      with:
+        release-channel: ${{ matrix.dart_channel }}
+    - name: Install dependencies
+      run: pub get
+    - name: Run tests
+      run: pub run test
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cedx/setup-dart@v2
+        with:
+          release-channel: dev
+      - run: cd packages/string_literal_finder && _tool/test-coverage.sh
+      - name: Coveralls
+        uses: coverallsapp/github-action@v1.1.3
+        env:
+          COVERALLS_FLAG_NAME: Unit
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          base-path: packages/string_literal_finder
+          path-to-lcov: packages/string_literal_finder/coverage/lcov.info
+#          base-path: .
+
