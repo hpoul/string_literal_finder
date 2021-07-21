@@ -66,4 +66,40 @@ final _string = 'example';
       expect(found.first.stringValue, 'found');
     });
   });
+  group('ignore annotations', () {
+    test('function annotation', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+      
+      @NonNls
+      String test() {
+        return 'ignored';
+      }
+      
+      String test2() {
+        return 'found';
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
+    test('method annotation', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+      
+      class Example {
+        @NonNls
+        String test() {
+          return 'ignored';
+        }
+        
+        String test2() {
+          return 'found';
+        }
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
+  });
 }

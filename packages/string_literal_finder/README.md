@@ -89,6 +89,12 @@ void main() {
     'key': 'value',
   });
 }
+
+@NonNls
+String ignoreFunction() {
+  // all strings in this function will be ignored.
+  return 'foo';
+}
 ```
 
 will result in those warnings:

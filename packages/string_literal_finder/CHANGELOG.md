@@ -1,3 +1,7 @@
+## 1.0.0+6
+
+* Ignore all strings found in functions and methods annotated with `@NonNls`
+
 ## 1.0.0+5
 
 * Remove direct dependency on `meta`

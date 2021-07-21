@@ -315,6 +315,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             }
           }
         }
+        if (node is FunctionDeclaration || node is MethodDeclaration) {
+          if (node is Declaration) {
+            if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
+              return true;
+            }
+          }
+        }
       } catch (e, stackTrace) {
         final loc = lineInfo!.getLocation(origNode.offset);
         _logger.severe('Error while analysing node $origNode at $filePath $loc',
