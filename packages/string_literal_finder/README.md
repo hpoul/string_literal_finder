@@ -1,6 +1,7 @@
 [![Pub Version](https://badgen.net/pub/v/string_literal_finder)](https://pub.dev/packages/string_literal_finder/)
 [![Dart SDK Version](https://badgen.net/pub/sdk-version/string_literal_finder)](https://pub.dev/packages/string_literal_finder/)
 [![Pub popularity](https://badgen.net/pub/popularity/string_literal_finder)](https://pub.dev/packages/string_literal_finder/score)
+[![codecov](https://codecov.io/gh/hpoul/string_literal_finder/branch/master/graph/badge.svg?token=CIEU46D62O)](https://codecov.io/gh/hpoul/string_literal_finder)
 
 # string_literal_finder
 
