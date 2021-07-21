@@ -1,3 +1,8 @@
+## 1.0.0+5
+
+* Remove direct dependency on `meta`
+* Add note about `dependency_overrides` for `analyzer` package to `README.md`.
+
 ## 1.0.0+4
 
 * Allow configuring analysis_options.yaml additional `exclude_globs`

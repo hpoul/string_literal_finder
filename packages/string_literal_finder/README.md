@@ -35,6 +35,15 @@ configuring `string_literal_finder` as a analyyer plugin.
     dev_dependencies:
       string_literal_finder: ^1.0.0 # Make sure to use the latest version.
     ```
+   
+   If you get errors because other plugins depend on `analyzer`==`2.0.0` you might need
+   to add a `dependency_overrides`. [Everything should be compatible with `2.0.0`](https://github.com/dart-lang/sdk/commit/02fcbc74927787fa85dc41825fa71506ce00e86e).
+   
+   ```shell
+   dependency_overrides:
+     # analyzer_plugin does not declare 2.0.0 support yet.
+     analyzer: ^2.0.0
+   ```
 
 2. Configure `analysis_options.yaml`
 

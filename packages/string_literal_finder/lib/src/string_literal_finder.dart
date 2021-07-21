@@ -6,7 +6,6 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:logging/logging.dart';
-import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_gen/source_gen.dart';
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
@@ -37,7 +36,6 @@ abstract class ExcludePathChecker {
   bool shouldExclude(String path);
 }
 
-@immutable
 class _ExcludePathCheckerImpl extends ExcludePathChecker {
   const _ExcludePathCheckerImpl(
       {required this.predicate, required this.description});
