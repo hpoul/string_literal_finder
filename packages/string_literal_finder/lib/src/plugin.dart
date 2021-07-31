@@ -16,9 +16,9 @@ import 'package:analyzer_plugin/protocol/protocol_common.dart' as plugin;
 import 'package:analyzer_plugin/protocol/protocol_generated.dart' as plugin;
 import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 import 'package:string_literal_finder/src/string_literal_finder.dart';
 import 'package:yaml/yaml.dart';
-import 'package:path/path.dart' as p;
 
 final _logger = Logger('string_literal_finder.plugin');
 
@@ -214,8 +214,8 @@ class StringLiteralFinderPlugin extends ServerPlugin {
           foundStringLiteral.charLength,
           foundStringLiteral.loc.lineNumber,
           foundStringLiteral.loc.columnNumber,
-          foundStringLiteral.locEnd.lineNumber,
-          foundStringLiteral.locEnd.columnNumber,
+          endLine: foundStringLiteral.locEnd.lineNumber,
+          endColumn: foundStringLiteral.locEnd.columnNumber,
         );
 
         plugin.PrioritizedSourceChange? fix;

@@ -6,9 +6,9 @@ import 'package:analyzer/file_system/overlay_file_system.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
+import 'package:path/path.dart' as p;
 import 'package:string_literal_finder/src/string_literal_finder.dart';
 import 'package:test/test.dart';
-import 'package:path/path.dart' as p;
 
 final _logger = Logger('string_literal_finder_test');
 
