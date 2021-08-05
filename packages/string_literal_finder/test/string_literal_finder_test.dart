@@ -101,5 +101,18 @@ final _string = 'example';
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
     });
+    test('default values with annotation', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+      
+      abstract class Example {
+        String test([@NonNls String foo = 'ignored']);
+        
+        String test2([String foo = 'found']);
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
   });
 }

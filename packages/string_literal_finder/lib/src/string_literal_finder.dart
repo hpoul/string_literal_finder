@@ -287,6 +287,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             }
           }
         }
+        if (node is FormalParameter) {
+          final element = node.declaredElement;
+          if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
+            return true;
+          }
+        }
         if (node is MethodInvocation) {
           if (nodeChildChild is! Expression) {
             _logger.warning('not an expression. $nodeChildChild ($node)');

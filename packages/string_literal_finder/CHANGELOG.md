@@ -1,3 +1,7 @@
+## 1.0.1+1
+
+* Ignore strings in default parameters of `@NonNls` annotated parameters.
+
 ## 1.0.1
 
 * Upgrade dependencies (analyzer 2.0.0, analyzer_plugin 1.7.0)
