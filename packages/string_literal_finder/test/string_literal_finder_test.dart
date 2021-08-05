@@ -114,5 +114,19 @@ final _string = 'example';
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
     });
+    test('properties with annotation', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+      
+      abstract class Example {
+        @NonNls
+        static const test1 = 'ignored';
+        
+        static const test2 = 'found';
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
   });
 }

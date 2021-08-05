@@ -1,6 +1,7 @@
-## 1.0.1+1
+## 1.0.1+2
 
 * Ignore strings in default parameters of `@NonNls` annotated parameters.
+* Ignore strings in variable definitions annotated with `@NonNls`.
 
 ## 1.0.1
 
