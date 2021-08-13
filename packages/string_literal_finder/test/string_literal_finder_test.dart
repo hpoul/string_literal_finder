@@ -128,5 +128,21 @@ final _string = 'example';
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
     });
+    test('static properties of classes', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+      
+      @NonNls
+      abstract class Example {
+        static const test1 = 'ignored';
+      }
+      @NonNls
+      abstract class Example2 {
+        final test2 = 'found';
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
   });
 }

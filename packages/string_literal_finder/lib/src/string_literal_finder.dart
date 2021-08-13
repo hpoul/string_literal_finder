@@ -255,6 +255,15 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           _logger.finest('Ignoring annotation parameters $node');
           return true;
         }
+        if (node is ClassDeclaration) {
+          if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
+            if (nodeChild is FieldDeclaration) {
+              if (nodeChild.isStatic) {
+                return true;
+              }
+            }
+          }
+        }
         if (node is IndexExpression) {
           final target = node.realTarget;
           if (target is SimpleIdentifier) {

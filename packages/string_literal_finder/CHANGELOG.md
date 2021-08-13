@@ -1,3 +1,7 @@
+## 1.0.1+3
+
+* If a class is annotated with `@NonNls` ignore static field definitions.
+
 ## 1.0.1+2
 
 * Ignore strings in default parameters of `@NonNls` annotated parameters.
