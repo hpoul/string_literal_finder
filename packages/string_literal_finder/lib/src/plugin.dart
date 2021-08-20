@@ -76,11 +76,16 @@ class StringLiteralFinderPlugin extends ServerPlugin {
       runZonedGuarded(
         () {
           dartDriver.results.listen((analysisResult) {
-            _processResult(
-              dartDriver,
-              analysisOptions,
-              analysisResult,
-            );
+            if (analysisResult is ResolvedUnitResult) {
+              _processResult(
+                dartDriver,
+                analysisOptions,
+                analysisResult,
+              );
+            } else if (analysisResult is ErrorsResult) {
+              _logger
+                  .severe('analysis produce errors. ${analysisResult.errors}');
+            }
           });
         },
         (Object e, StackTrace stackTrace) {
@@ -117,8 +122,8 @@ class StringLiteralFinderPlugin extends ServerPlugin {
         return plugin.EditGetFixesResult([]);
       }
 
-      final fixes = _check(driver, analysisResult.path!, analysisResult.unit!,
-              analysisResult)
+      final fixes = _check(
+              driver, analysisResult.path, analysisResult.unit, analysisResult)
           .where((fix) =>
               fix.error.location.file == parameters.file &&
               fix.error.location.offset <= parameters.offset &&
@@ -144,22 +149,15 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     ResolvedUnitResult analysisResult,
   ) {
     final path = analysisResult.path;
-    if (path == null) {
-      _logger.warning('No path given for analysisResult.');
-      return;
-    }
 
     final unit = analysisResult.unit;
     final isAnalyzed =
         dartDriver.analysisContext?.contextRoot.isAnalyzed(path) ?? false;
     final isExcluded = !isAnalyzed || analysisOptions.isExcluded(path);
-    if (unit == null || isExcluded) {
-      if (unit == null) {
-        _logger.warning('No unit for analysisResult.');
-      } else {
-        _logger.finer('is not analyzed: $path '
-            '(analyzed: $isAnalyzed / isExcluded: $isExcluded)');
-      }
+    if (isExcluded) {
+      _logger.finer('is not analyzed: $path '
+          '(analyzed: $isAnalyzed / isExcluded: $isExcluded)');
+
       channel.sendNotification(
         plugin.AnalysisErrorsParams(
           path,
@@ -218,32 +216,29 @@ class StringLiteralFinderPlugin extends ServerPlugin {
           endColumn: foundStringLiteral.locEnd.columnNumber,
         );
 
-        plugin.PrioritizedSourceChange? fix;
         final content = analysisResult.content;
-        if (content != null) {
-          final semicolonOffset = content.lastIndexOf(
-              ';',
-              analysisResult.lineInfo
-                  .getOffsetOfLineAfter(foundStringLiteral.charEnd));
-          fix = plugin.PrioritizedSourceChange(
-            1,
-            plugin.SourceChange(
-              'Add // NON-NLS',
-              edits: [
-                plugin.SourceFileEdit(
-                  filePath,
-                  analysisResult.libraryElement.source.modificationStamp,
-                  edits: [
-                    plugin.SourceEdit(semicolonOffset + 1, 0, ' // NON-NLS'),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }
+        final semicolonOffset = content.lastIndexOf(
+            ';',
+            analysisResult.lineInfo
+                .getOffsetOfLineAfter(foundStringLiteral.charEnd));
+        final fix = plugin.PrioritizedSourceChange(
+          1,
+          plugin.SourceChange(
+            'Add // NON-NLS',
+            edits: [
+              plugin.SourceFileEdit(
+                filePath,
+                analysisResult.libraryElement.source.modificationStamp,
+                edits: [
+                  plugin.SourceEdit(semicolonOffset + 1, 0, ' // NON-NLS'),
+                ],
+              ),
+            ],
+          ),
+        );
 
         String stringValue() {
-          if (content == null || content.length < foundStringLiteral.charEnd) {
+          if (content.length < foundStringLiteral.charEnd) {
             return '';
           }
           return content
@@ -267,9 +262,9 @@ class StringLiteralFinderPlugin extends ServerPlugin {
                 correction:
                     'Externalize string or add nonNls() decorator method, '
                     'or add // NON-NLS to end of line. ($filePath) ($relative)',
-                hasFix: fix != null,
+                hasFix: true,
               ),
-              fixes: fix == null ? [] : [fix]),
+              fixes: [fix]),
         );
       },
     );

@@ -99,11 +99,11 @@ class StringLiteralFinder {
       AnalysisContext context, String filePath) async {
     _logger.fine('analyzing $filePath');
 //    final result = context.currentSession.getParsedUnit(filePath);
-    final result = await context.currentSession.getResolvedUnit2(filePath);
+    final result = await context.currentSession.getResolvedUnit(filePath);
     if (result is! ResolvedUnitResult) {
       throw StateError('Did not resolve to valid unit.');
     }
-    final unit = result.unit!;
+    final unit = result.unit;
     final visitor = StringLiteralVisitor<dynamic>(
         filePath: filePath,
         unit: unit,

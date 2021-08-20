@@ -29,13 +29,13 @@ Future<List<FoundStringLiteral>> _findStrings(String source) async {
   final foundStrings = <FoundStringLiteral>[];
   final x = StringLiteralVisitor<dynamic>(
     filePath: filePath,
-    unit: parsed.unit!,
+    unit: parsed.unit,
     foundStringLiteral: (found) {
       foundStrings.add(found);
       _logger.fine('Found String ${found.stringValue}');
     },
   );
-  parsed.unit!.visitChildren(x);
+  parsed.unit.visitChildren(x);
   return foundStrings;
 }
 

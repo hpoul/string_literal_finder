@@ -1,3 +1,7 @@
+## 1.0.2
+
+* Use analyzer >= 2.1.0
+
 ## 1.0.1+3
 
 * If a class is annotated with `@NonNls` ignore static field definitions.
