@@ -116,7 +116,7 @@ class StringLiteralFinderPlugin extends ServerPlugin {
       plugin.EditGetFixesParams parameters) async {
     try {
       final driver = driverForPath(parameters.file) as AnalysisDriver;
-      final analysisResult = await driver.getResult2(parameters.file);
+      final analysisResult = await driver.getResult(parameters.file);
 
       if (analysisResult is! ResolvedUnitResult) {
         return plugin.EditGetFixesResult([]);
@@ -228,7 +228,10 @@ class StringLiteralFinderPlugin extends ServerPlugin {
             edits: [
               plugin.SourceFileEdit(
                 filePath,
-                analysisResult.libraryElement.source.modificationStamp,
+                // https://groups.google.com/a/dartlang.org/g/analyzer-discuss/c/lfRzX0yw3ZU
+                // https://github.com/dart-code-checker/dart-code-metrics/blob/0813a54f2969dbaf5e00c6ae2c4ab1132a64580a/lib/src/analyzer_plugin/analyzer_plugin_utils.dart#L44-L47s
+                analysisResult.exists ? 0 : -1,
+                // analysisResult.libraryElement.source.modificationStamp,
                 edits: [
                   plugin.SourceEdit(semicolonOffset + 1, 0, ' // NON-NLS'),
                 ],
