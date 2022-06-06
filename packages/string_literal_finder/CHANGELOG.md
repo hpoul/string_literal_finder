@@ -1,3 +1,7 @@
+## 1.0.4
+
+* Upgrade dependencies (analyzer 3.4)
+
 ## 1.0.3
 
 * Upgrade dependencies (support for analyzer 3.0.0)
