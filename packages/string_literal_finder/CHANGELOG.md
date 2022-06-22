@@ -1,3 +1,7 @@
+## 1.1.0
+
+* First version of supporting extracting to arb file.
+
 ## 1.0.4
 
 * Upgrade dependencies (analyzer 3.4)
