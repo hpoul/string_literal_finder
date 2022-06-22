@@ -42,6 +42,8 @@ class StringLiteralFinderPlugin extends ServerPlugin {
 
   final Map<AnalysisDriverGeneric, AnalysisOptions> _options = {};
 
+  final Map<String, File?> _arbFiles = {};
+
   @override
   AnalysisDriverGeneric createAnalysisDriver(plugin.ContextRoot contextRoot) {
     final rootPath = contextRoot.root;
@@ -207,22 +209,25 @@ class StringLiteralFinderPlugin extends ServerPlugin {
   }
 
   File? _findArbFile(String rootDir) {
-    final l10nYaml = resourceProvider.getFile(p.join(rootDir, 'l10n.yaml'));
-    if (!l10nYaml.exists) {
-      _logger.warning('Unable to find l10n.yaml');
-      return null;
-    }
-    final dynamic yaml = loadYaml(l10nYaml.readAsStringSync());
-    final arbDir = yaml['arb-dir'] as String? ?? 'lib/l10n';
-    final arbName = yaml['template-arb-file'] as String? ?? 'app_en.arb';
-    _logger.fine('got yaml: $yaml -- arbDir: $arbDir / arbName: $arbName');
-    final arbFile = resourceProvider.getFile(p.join(rootDir, arbDir, arbName));
-    _logger.fine('got arbFile: $arbFile');
-    if (!arbFile.exists) {
-      _logger.severe('configured arb file does not exist. $arbFile');
-      return null;
-    }
-    return arbFile;
+    return _arbFiles.putIfAbsent(rootDir, () {
+      final l10nYaml = resourceProvider.getFile(p.join(rootDir, 'l10n.yaml'));
+      if (!l10nYaml.exists) {
+        _logger.warning('Unable to find l10n.yaml');
+        return null;
+      }
+      final dynamic yaml = loadYaml(l10nYaml.readAsStringSync());
+      final arbDir = yaml['arb-dir'] as String? ?? 'lib/l10n';
+      final arbName = yaml['template-arb-file'] as String? ?? 'app_en.arb';
+      _logger.fine('got yaml: $yaml -- arbDir: $arbDir / arbName: $arbName');
+      final arbFile =
+          resourceProvider.getFile(p.join(rootDir, arbDir, arbName));
+      _logger.fine('got arbFile: $arbFile');
+      if (!arbFile.exists) {
+        _logger.severe('configured arb file does not exist. $arbFile');
+        return null;
+      }
+      return arbFile;
+    });
   }
 
   List<plugin.AnalysisErrorFixes> _check(
