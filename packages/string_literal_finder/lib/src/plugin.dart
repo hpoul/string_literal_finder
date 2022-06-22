@@ -380,7 +380,8 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     //     builder.writeln();
     //   });
     // });
-    changeBuilder.addYamlFileEdit(arbFile.path, (builder) {
+    // changeBuilder.addYamlFileEdit(arbFile.path, (builder) {
+    changeBuilder.addGenericFileEdit(arbFile.path, (builder) {
       builder.addInsertion(2, (builder) {
         builder.write('  "');
         // builder.addSimpleLinkedEdit(keyGroup, key);

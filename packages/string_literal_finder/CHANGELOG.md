@@ -1,4 +1,4 @@
-## 1.1.0+1
+## 1.1.0+2
 
 * First version of supporting extracting to arb file.
 
