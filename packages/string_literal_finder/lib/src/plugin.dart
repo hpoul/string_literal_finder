@@ -100,6 +100,10 @@ class StringLiteralFinderPlugin extends ServerPlugin {
     required AnalysisContext analysisContext,
     required String path,
   }) async {
+    if (!path.endsWith('.dart')) {
+      _logger.fine('No dart file: [$path]');
+      return;
+    }
     final root = analysisContext.contextRoot.root.path;
 
     final analysisOptions = (_options[analysisContext.currentSession] ??=

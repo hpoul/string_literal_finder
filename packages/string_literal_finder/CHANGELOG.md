@@ -1,4 +1,4 @@
-## 1.2.0-dev.1
+## 1.2.0-dev.2
 
 * Upgrade to analyzer_plugin 0.11.0 
 
