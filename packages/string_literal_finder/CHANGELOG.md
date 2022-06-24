@@ -1,3 +1,7 @@
+## 1.2.0-dev.1
+
+* Upgrade to analyzer_plugin 0.11.0 
+
 ## 1.1.0+2
 
 * First version of supporting extracting to arb file.
