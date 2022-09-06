@@ -279,6 +279,17 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             }
           }
         }
+        if (node is EnumConstantArguments) {
+          final constantDeclaration = node.parent as EnumConstantDeclaration;
+          final constructor = constantDeclaration.constructorElement;
+          if (_checkArgumentAnnotation(
+            node.argumentList,
+            constructor,
+            nodeChildChild as Expression,
+          )) {
+            return true;
+          }
+        }
         if (node is InstanceCreationExpression) {
           assert(nodeChild == node.argumentList);
           if (_checkArgumentAnnotation(

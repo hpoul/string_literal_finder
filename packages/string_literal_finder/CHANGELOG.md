@@ -1,6 +1,7 @@
-## 1.2.0-dev.2
+## 1.3.0
 
-* Upgrade to analyzer_plugin 0.11.0 
+* Upgrade to analyzer_plugin 0.11.0
+* Support for Enhanced enums of dart 2.17
 
 ## 1.1.0+2
 

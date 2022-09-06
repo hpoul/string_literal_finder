@@ -144,5 +144,25 @@ final _string = 'example';
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
     });
+    test('enhanced enums', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+      
+      enum EnumWithString1 {
+        value('found'),
+        ;
+        EnumWithString1(this.val);
+        String val;
+      }
+      enum EnumWithString2 {
+        value('ignored'),
+        ;
+        EnumWithString2(@NonNls this.val);
+        String val;
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
   });
 }
