@@ -1,3 +1,7 @@
+## 1.3.0+1
+
+* Analyzer 5.0.0
+
 ## 1.3.0
 
 * Upgrade to analyzer_plugin 0.11.0

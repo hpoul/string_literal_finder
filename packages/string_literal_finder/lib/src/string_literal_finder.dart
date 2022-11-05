@@ -256,7 +256,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           return true;
         }
         if (node is ClassDeclaration) {
-          if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
+          if (nonNlsChecker.hasAnnotationOf(node.declaredElement2!)) {
             if (nodeChild is FieldDeclaration) {
               if (nodeChild.isStatic) {
                 return true;
@@ -302,13 +302,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 //          node.constructorName.staticElement;
           for (final ignoredConstructorCall in ignoredConstructorCalls) {
             if (ignoredConstructorCall
-                .isAssignableFrom(node.staticType!.element!)) {
+                .isAssignableFrom(node.staticType!.element2!)) {
               return true;
             }
           }
         }
         if (node is VariableDeclaration) {
-          final element = node.declaredElement;
+          final element = node.declaredElement2;
           if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
             return true;
           }
@@ -349,7 +349,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is FunctionDeclaration || node is MethodDeclaration) {
           if (node is Declaration) {
-            if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
+            if (nonNlsChecker.hasAnnotationOf(node.declaredElement2!)) {
               return true;
             }
           }
