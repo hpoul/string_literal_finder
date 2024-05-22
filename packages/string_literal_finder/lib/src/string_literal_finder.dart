@@ -217,18 +217,21 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 
   bool _checkArgumentAnnotation(ArgumentList argumentList,
       ExecutableElement? executableElement, Expression nodeChildChild) {
+    if (executableElement == null) {
+      return false;
+    }
     final argPos = argumentList.arguments.indexOf(nodeChildChild);
     assert(argPos != -1);
     final arg = argumentList.arguments[argPos];
     ParameterElement param;
     if (arg is NamedExpression) {
-      param = executableElement!.parameters.firstWhere(
+      param = executableElement.parameters.firstWhere(
           (element) => element.isNamed && element.name == arg.name.label.name,
           orElse: () => throw StateError(
               'Unable to find parameter of name ${arg.name.label} for '
               '$executableElement'));
     } else {
-      param = executableElement!.parameters[argPos];
+      param = executableElement.parameters[argPos];
       assert(param.isPositional);
     }
     if (nonNlsChecker.hasAnnotationOf(param)) {
@@ -256,7 +259,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           return true;
         }
         if (node is ClassDeclaration) {
-          if (nonNlsChecker.hasAnnotationOf(node.declaredElement2!)) {
+          if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
             if (nodeChild is FieldDeclaration) {
               if (nodeChild.isStatic) {
                 return true;
@@ -302,13 +305,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 //          node.constructorName.staticElement;
           for (final ignoredConstructorCall in ignoredConstructorCalls) {
             if (ignoredConstructorCall
-                .isAssignableFrom(node.staticType!.element2!)) {
+                .isAssignableFrom(node.staticType!.element!)) {
               return true;
             }
           }
         }
         if (node is VariableDeclaration) {
-          final element = node.declaredElement2;
+          final element = node.declaredElement;
           if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
             return true;
           }
@@ -349,7 +352,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is FunctionDeclaration || node is MethodDeclaration) {
           if (node is Declaration) {
-            if (nonNlsChecker.hasAnnotationOf(node.declaredElement2!)) {
+            if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
               return true;
             }
           }
