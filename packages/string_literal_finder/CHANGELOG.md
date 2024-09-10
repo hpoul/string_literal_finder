@@ -1,3 +1,8 @@
+## 1.3.0+2
+
+* Analyzer 6.0.0
+* Upgrade dependency constraints.
+
 ## 1.3.0+1
 
 * Analyzer 5.0.0
