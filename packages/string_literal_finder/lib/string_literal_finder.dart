@@ -4,4 +4,4 @@ library;
 
 export 'src/plugin.dart';
 export 'src/string_literal_finder.dart'
-    show StringLiteralFinder, FoundStringLiteral;
+    show StringLiteralFinder, FoundStringLiteral,ExcludePathChecker;
