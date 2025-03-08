@@ -1,3 +1,8 @@
+## 1.4.0
+
+* Analyzer 7.0.0
+* source_gen 2.0.0
+
 ## 1.3.0+2
 
 * Analyzer 6.0.0

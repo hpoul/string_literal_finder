@@ -217,7 +217,7 @@ class StringLiteralFinderPlugin extends ServerPlugin {
         errors.add(
           plugin.AnalysisErrorFixes(
             plugin.AnalysisError(
-              plugin.AnalysisErrorSeverity('WARNING'),
+              plugin.AnalysisErrorSeverity.WARNING,
               plugin.AnalysisErrorType.LINT,
               location,
               'Found string literal: $stringCode',
@@ -490,7 +490,6 @@ class StringLiteralFinderPlugin extends ServerPlugin {
   //     Map<String, List<AnalysisService>> subscriptions) {
   //   TODO: implement sendNotificationsForSubscriptions
   // }
-
 }
 
 class AnalysisOptions {

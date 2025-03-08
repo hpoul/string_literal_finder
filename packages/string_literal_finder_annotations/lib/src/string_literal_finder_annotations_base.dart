@@ -6,6 +6,7 @@ class NonNlsArg {
 
 /// Annotation for function/method/constructor parameters which are not meant
 /// to be localized.
+// ignore: constant_identifier_names
 const NonNls = NonNlsArg();
 
 /// Allows annotating of values which do not need translations.
