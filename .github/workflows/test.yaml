@@ -16,10 +16,10 @@ jobs:
         shell: bash
         working-directory: packages/string_literal_finder
     steps:
-      - uses: actions/checkout@v2
-      - uses: cedx/setup-dart@v2
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
         with:
-          release-channel: ${{ matrix.dart_channel }}
+          sdk: ${{ matrix.dart_channel }}
       - name: Install dependencies
         run: dart pub get
       - name: Run tests
@@ -27,10 +27,10 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: cedx/setup-dart@v2
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
         with:
-          release-channel: dev
+          sdk: dev
       - run: cd packages/string_literal_finder && _tool/test-coverage.sh
       - name: Coveralls
         uses: coverallsapp/github-action@1.1.3
