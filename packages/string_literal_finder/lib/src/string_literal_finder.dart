@@ -3,7 +3,7 @@ import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
-import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/element2.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
@@ -216,22 +216,22 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   }
 
   bool _checkArgumentAnnotation(ArgumentList argumentList,
-      ExecutableElement? executableElement, Expression nodeChildChild) {
+      ExecutableElement2? executableElement, Expression nodeChildChild) {
     if (executableElement == null) {
       return false;
     }
     final argPos = argumentList.arguments.indexOf(nodeChildChild);
     assert(argPos != -1);
     final arg = argumentList.arguments[argPos];
-    ParameterElement param;
+    FormalParameterElement param;
     if (arg is NamedExpression) {
-      param = executableElement.parameters.firstWhere(
-          (element) => element.isNamed && element.name == arg.name.label.name,
+      param = executableElement.formalParameters.firstWhere(
+          (element) => element.isNamed && element.name3 == arg.name.label.name,
           orElse: () => throw StateError(
               'Unable to find parameter of name ${arg.name.label} for '
               '$executableElement'));
     } else {
-      param = executableElement.parameters[argPos];
+      param = executableElement.formalParameters[argPos];
       assert(param.isPositional);
     }
     if (nonNlsChecker.hasAnnotationOf(param)) {
@@ -259,7 +259,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           return true;
         }
         if (node is ClassDeclaration) {
-          if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
+          if (nonNlsChecker.hasAnnotationOf(node.declaredFragment!.element)) {
             if (nodeChild is FieldDeclaration) {
               if (nodeChild.isStatic) {
                 return true;
@@ -271,7 +271,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           final target = node.realTarget;
           if (target is SimpleIdentifier) {
             try {
-              if (nonNlsChecker.hasAnnotationOf(target.staticElement!)) {
+              if (nonNlsChecker.hasAnnotationOf(target.element!)) {
                 return true;
               }
             } catch (e, stackTrace) {
@@ -284,7 +284,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is EnumConstantArguments) {
           final constantDeclaration = node.parent as EnumConstantDeclaration;
-          final constructor = constantDeclaration.constructorElement;
+          final constructor = constantDeclaration.constructorElement2;
           if (_checkArgumentAnnotation(
             node.argumentList,
             constructor,
@@ -295,29 +295,28 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is InstanceCreationExpression) {
           assert(nodeChild == node.argumentList);
-          if (_checkArgumentAnnotation(
-              node.argumentList,
-              node.constructorName.staticElement,
-              nodeChildChild as Expression)) {
+          if (_checkArgumentAnnotation(node.argumentList,
+              node.constructorName.element, nodeChildChild as Expression)) {
             return true;
           }
 //        param.no
 //          node.constructorName.staticElement;
           for (final ignoredConstructorCall in ignoredConstructorCalls) {
             if (ignoredConstructorCall
-                .isAssignableFrom(node.staticType!.element!)) {
+                .isAssignableFrom(node.staticType!.element3!)) {
               return true;
             }
           }
         }
         if (node is VariableDeclaration) {
-          final element = node.declaredElement;
+          final element =
+              node.declaredFragment?.element ?? node.declaredElement2;
           if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
             return true;
           }
         }
         if (node is FormalParameter) {
-          final element = node.declaredElement;
+          final element = node.declaredFragment?.element;
           if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
             return true;
           }
@@ -336,7 +335,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
                   // check if the argument is annotated
                   _checkArgumentAnnotation(
                       node.argumentList,
-                      node.methodName.staticElement as ExecutableElement?,
+                      node.methodName.element as ExecutableElement2?,
                       nodeChildChild)) {
             return true;
           }
@@ -352,7 +351,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is FunctionDeclaration || node is MethodDeclaration) {
           if (node is Declaration) {
-            if (nonNlsChecker.hasAnnotationOf(node.declaredElement!)) {
+            if (nonNlsChecker.hasAnnotationOf(node.declaredFragment!.element)) {
               return true;
             }
           }
