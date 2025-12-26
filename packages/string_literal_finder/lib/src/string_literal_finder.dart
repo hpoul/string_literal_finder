@@ -3,7 +3,7 @@ import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
-import 'package:analyzer/dart/element/element2.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
@@ -155,13 +155,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     required this.foundStringLiteral,
   }) : lineInfo = unit.lineInfo;
 
-  static const loggerChecker = TypeChecker.fromRuntime(Logger);
-  static const nonNlsChecker = TypeChecker.fromRuntime(NonNlsArg);
-  static const exceptionChecker = TypeChecker.fromRuntime(Exception);
-  static const errorChecker = TypeChecker.fromRuntime(Error);
+  static const loggerChecker = TypeChecker.typeNamed(Logger);
+  static const nonNlsChecker = TypeChecker.typeNamed(NonNlsArg);
+  static const exceptionChecker = TypeChecker.typeNamed(Exception);
+  static const errorChecker = TypeChecker.typeNamed(Error);
   static const ignoredConstructorCalls = [
-    TypeChecker.fromRuntime(Uri),
-    TypeChecker.fromRuntime(RegExp),
+    TypeChecker.typeNamed(Uri),
+    TypeChecker.typeNamed(RegExp),
     TypeChecker.fromUrl(
         'package:flutter/src/painting/image_resolution.dart#AssetImage'),
     TypeChecker.fromUrl(
@@ -169,7 +169,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     TypeChecker.fromUrl('package:flutter/src/foundation/key.dart#ValueKey'),
     TypeChecker.fromUrl(
         'package:flutter/src/services/platform_channel.dart#MethodChannel'),
-    TypeChecker.fromRuntime(StateError),
+    TypeChecker.typeNamed(StateError),
     loggerChecker,
     exceptionChecker,
     errorChecker,
@@ -216,7 +216,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   }
 
   bool _checkArgumentAnnotation(ArgumentList argumentList,
-      ExecutableElement2? executableElement, Expression nodeChildChild) {
+      ExecutableElement? executableElement, Expression nodeChildChild) {
     if (executableElement == null) {
       return false;
     }
@@ -226,7 +226,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     FormalParameterElement param;
     if (arg is NamedExpression) {
       param = executableElement.formalParameters.firstWhere(
-          (element) => element.isNamed && element.name3 == arg.name.label.name,
+          (element) => element.isNamed && element.name == arg.name.label.name,
           orElse: () => throw StateError(
               'Unable to find parameter of name ${arg.name.label} for '
               '$executableElement'));
@@ -284,7 +284,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is EnumConstantArguments) {
           final constantDeclaration = node.parent as EnumConstantDeclaration;
-          final constructor = constantDeclaration.constructorElement2;
+          final constructor = constantDeclaration.constructorElement;
           if (_checkArgumentAnnotation(
             node.argumentList,
             constructor,
@@ -303,14 +303,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
 //          node.constructorName.staticElement;
           for (final ignoredConstructorCall in ignoredConstructorCalls) {
             if (ignoredConstructorCall
-                .isAssignableFrom(node.staticType!.element3!)) {
+                .isAssignableFrom(node.staticType!.element!)) {
               return true;
             }
           }
         }
         if (node is VariableDeclaration) {
-          final element =
-              node.declaredFragment?.element ?? node.declaredElement2;
+          final element = node.declaredFragment?.element;
           if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
             return true;
           }
@@ -335,7 +334,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
                   // check if the argument is annotated
                   _checkArgumentAnnotation(
                       node.argumentList,
-                      node.methodName.element as ExecutableElement2?,
+                      node.methodName.element as ExecutableElement?,
                       nodeChildChild)) {
             return true;
           }
