@@ -265,6 +265,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
                 return true;
               }
             }
+            // since analyzer 10 There is another hierarchy
+            if (nodeChildChild is FieldDeclaration) {
+              if (nodeChildChild.isStatic) {
+                return true;
+              }
+            }
           }
         }
         if (node is IndexExpression) {

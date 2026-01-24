@@ -1,3 +1,7 @@
+## 1.5.0
+
+* Support for analyzer 10.x
+
 ## 1.5.0-dev.2
 
 * Migrate to source_gen 4.x, analyzer 9.x
