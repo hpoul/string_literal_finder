@@ -1,3 +1,7 @@
+## 1.5.0+1
+
+* Allow logging_appenders 2.0
+
 ## 1.5.0
 
 * Support for analyzer 10.x
