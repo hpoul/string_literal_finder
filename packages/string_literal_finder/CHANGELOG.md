@@ -1,3 +1,8 @@
+## 2.0.0-dev.1
+
+* Migrate to `analysis_server_plugin` instead of `analyzer_plugin`
+  * Still missing: quick fixes!
+
 ## 1.5.0+1
 
 * Allow logging_appenders 2.0

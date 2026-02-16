@@ -9,6 +9,10 @@ include: package:lints/recommended.yaml
 #   rules:
 #     - camel_case_types
 
+plugins:
+  string_literal_finder:
+    path: ../
+
 analyzer:
 #   exclude:
 #     - path/to/excluded/files/**

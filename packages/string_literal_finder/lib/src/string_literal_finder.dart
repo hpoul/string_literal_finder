@@ -148,12 +148,33 @@ class FoundStringLiteral {
   int get charLength => charEnd - charOffset;
 }
 
-class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
-  StringLiteralVisitor({
+class StringLiteralContext {
+  StringLiteralContext({
     required this.filePath,
     required this.unit,
+    required this.lineInfo,
+  });
+
+  final String filePath;
+  final CompilationUnit? unit;
+  final LineInfo? lineInfo;
+}
+
+class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
+  StringLiteralVisitor({
+    required String filePath,
+    required CompilationUnit unit,
+    required void Function(FoundStringLiteral foundStringLiteral)
+        foundStringLiteral,
+  }) : this.context(
+            context: () => StringLiteralContext(
+                filePath: filePath, unit: unit, lineInfo: unit.lineInfo),
+            foundStringLiteral: foundStringLiteral);
+
+  StringLiteralVisitor.context({
+    required this.context,
     required this.foundStringLiteral,
-  }) : lineInfo = unit.lineInfo;
+  });
 
   static const loggerChecker = TypeChecker.typeNamed(Logger);
   static const nonNlsChecker = TypeChecker.typeNamed(NonNlsArg);
@@ -175,9 +196,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     errorChecker,
   ];
 
-  final String filePath;
-  final CompilationUnit unit;
-  final LineInfo? lineInfo;
+  final StringLiteralContext Function() context;
   final void Function(FoundStringLiteral foundStringLiteral) foundStringLiteral;
 
   @override
@@ -190,7 +209,10 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
       return null;
     }
 
-    final lineInfo = unit.lineInfo;
+    final lineInfo = context().lineInfo;
+    if (lineInfo == null) {
+      return null;
+    }
     final begin = node.beginToken.charOffset;
     final end = node.endToken.charEnd;
     final loc = lineInfo.getLocation(begin);
@@ -206,7 +228,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
          - nextNext: $nextNext 
          - precedingComments: ${node.beginToken.precedingComments}''');
     foundStringLiteral(FoundStringLiteral(
-      filePath: filePath,
+      filePath: context().filePath,
       loc: loc,
       locEnd: locEnd,
       stringValue: node.stringValue,
@@ -242,6 +264,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   }
 
   bool _shouldIgnore(AstNode origNode) {
+    late final lineInfo = context().lineInfo;
     AstNode? node = origNode;
     AstNode? nodeChild;
     AstNode? nodeChildChild;
@@ -282,7 +305,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
               }
             } catch (e, stackTrace) {
               _logger.warning(
-                  'Unable to check annotation for $origNode at $filePath',
+                  'Unable to check annotation for $origNode at ${context().filePath}',
                   e,
                   stackTrace);
             }
@@ -363,8 +386,10 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
       } catch (e, stackTrace) {
         final loc = lineInfo!.getLocation(origNode.offset);
-        _logger.severe('Error while analysing node $origNode at $filePath $loc',
-            e, stackTrace);
+        _logger.severe(
+            'Error while analysing node $origNode at ${context().filePath} $loc',
+            e,
+            stackTrace);
       }
     }
     // see if we can find a line end comment.
