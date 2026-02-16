@@ -1,10 +1,12 @@
-import 'package:string_literal_finder/src/plugin.dart';
+import 'package:analyzer/file_system/memory_file_system.dart';
+import 'package:string_literal_finder/main.dart' show AnalysisOptions;
 import 'package:test/test.dart';
 
 void main() {
   group('options', () {
     test('load options', () {
-      final opts = AnalysisOptions.loadFromYaml('''
+      final resource = MemoryResourceProvider();
+      final opts = AnalysisOptions.loadFromYaml(resource.getFolder('test'), '''
 string_literal_finder:
   exclude_globs:
     - '_tools/**'
@@ -18,7 +20,8 @@ string_literal_finder:
       expect(opts.isExcluded('_tools/_flutter_version_update.dart'), isTrue);
     });
     test('empty options', () {
-      final opts = AnalysisOptions.loadFromYaml('''
+      final resource = MemoryResourceProvider();
+      final opts = AnalysisOptions.loadFromYaml(resource.getFolder('test'), '''
 include: loremIpsum
 
 analyzer:

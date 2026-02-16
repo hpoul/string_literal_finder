@@ -396,12 +396,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     final lineNumber = lineInfo!.getLocation(origNode.end).lineNumber;
     var nextToken = origNode.endToken.next;
     while (nextToken != null &&
-        lineInfo!.getLocation(nextToken.offset).lineNumber == lineNumber) {
+        lineInfo.getLocation(nextToken.offset).lineNumber == lineNumber) {
       nextToken = nextToken.next;
     }
     final comment = nextToken!.precedingComments;
     if (comment != null &&
-        lineInfo!.getLocation(comment.offset).lineNumber == lineNumber) {
+        lineInfo.getLocation(comment.offset).lineNumber == lineNumber) {
       if (comment.value().contains('NON-NLS')) {
         return true;
       }
