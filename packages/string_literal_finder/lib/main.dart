@@ -61,7 +61,7 @@ class LiteralStringRule extends AnalysisRule {
     var dir = file.parent;
     while (!dir.isRoot) {
       try {
-        final optionsFile = dir.getChildAssumingFile('analysis_options.yaml');
+        final optionsFile = dir.getFile('analysis_options.yaml');
         if (optionsFile.exists) {
           final x = _analysisOptions[optionsFile.path];
           if (x != null) {

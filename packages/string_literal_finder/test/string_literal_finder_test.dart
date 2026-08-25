@@ -164,5 +164,33 @@ final _string = 'example';
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
     });
+    test('named arguments of a method invocation', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      void func({@NonNls String? key, String? label}) {}
+
+      void main() {
+        func(key: 'ignored', label: 'found');
+      }
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
+    test('named arguments of a constructor invocation', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      class Example {
+        Example({@NonNls this.key, this.label});
+        final String? key;
+        final String? label;
+      }
+
+      final example = Example(key: 'ignored', label: 'found');
+      ''');
+      expect(found, hasLength(1));
+      expect(found.first.stringValue, 'found');
+    });
   });
 }

@@ -6,7 +6,8 @@ void main() {
   group('options', () {
     test('load options', () {
       final resource = MemoryResourceProvider();
-      final opts = AnalysisOptions.loadFromYaml(resource.getFolder('test'), '''
+      final opts = AnalysisOptions.loadFromYaml(
+          resource.getFolder(resource.convertPath('/test')), '''
 string_literal_finder:
   exclude_globs:
     - '_tools/**'
@@ -21,7 +22,8 @@ string_literal_finder:
     });
     test('empty options', () {
       final resource = MemoryResourceProvider();
-      final opts = AnalysisOptions.loadFromYaml(resource.getFolder('test'), '''
+      final opts = AnalysisOptions.loadFromYaml(
+          resource.getFolder(resource.convertPath('/test')), '''
 include: loremIpsum
 
 analyzer:

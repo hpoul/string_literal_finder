@@ -237,30 +237,42 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     return super.visitStringLiteral(node);
   }
 
-  bool _checkArgumentAnnotation(ArgumentList argumentList,
-      ExecutableElement? executableElement, Expression nodeChildChild) {
+  /// Checks whether the formal parameter which [argument] is bound to is
+  /// annotated with [NonNlsArg].
+  ///
+  /// [argument] must be a direct child of [argumentList]. Since analyzer 13
+  /// named arguments are represented by [NamedArgument] (which is *not* an
+  /// [Expression]) rather than the former `NamedExpression`, so the argument
+  /// is typed as [Argument] here.
+  bool _checkArgumentAnnotation(
+    ArgumentList argumentList,
+    ExecutableElement? executableElement,
+    Argument argument,
+  ) {
     if (executableElement == null) {
       return false;
     }
-    final argPos = argumentList.arguments.indexOf(nodeChildChild);
-    assert(argPos != -1);
-    final arg = argumentList.arguments[argPos];
-    FormalParameterElement param;
-    if (arg is NamedExpression) {
-      param = executableElement.formalParameters.firstWhere(
-          (element) => element.isNamed && element.name == arg.name.label.name,
-          orElse: () => throw StateError(
-              'Unable to find parameter of name ${arg.name.label} for '
-              '$executableElement'));
+    final argPos = argumentList.arguments.indexOf(argument);
+    if (argPos == -1) {
+      return false;
+    }
+    final formalParameters = executableElement.formalParameters;
+    final FormalParameterElement? param;
+    if (argument is NamedArgument) {
+      final name = argument.name.lexeme;
+      param = formalParameters
+          .where((element) => element.isNamed && element.name == name)
+          .firstOrNull;
     } else {
-      param = executableElement.formalParameters[argPos];
-      assert(param.isPositional);
+      // Positional arguments are always listed before named ones, so the
+      // argument index doubles as the parameter index.
+      param =
+          argPos < formalParameters.length ? formalParameters[argPos] : null;
     }
-    if (nonNlsChecker.hasAnnotationOf(param)) {
-//      _logger.finest('XX Argument is annotated with NonNls.');
-      return true;
+    if (param == null) {
+      return false;
     }
-    return false;
+    return nonNlsChecker.hasAnnotationOf(param);
   }
 
   bool _shouldIgnore(AstNode origNode) {
@@ -314,22 +326,21 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         if (node is EnumConstantArguments) {
           final constantDeclaration = node.parent as EnumConstantDeclaration;
           final constructor = constantDeclaration.constructorElement;
-          if (_checkArgumentAnnotation(
-            node.argumentList,
-            constructor,
-            nodeChildChild as Expression,
-          )) {
+          if (nodeChildChild is Argument &&
+              _checkArgumentAnnotation(
+                node.argumentList,
+                constructor,
+                nodeChildChild,
+              )) {
             return true;
           }
         }
         if (node is InstanceCreationExpression) {
-          assert(nodeChild == node.argumentList);
-          if (_checkArgumentAnnotation(node.argumentList,
-              node.constructorName.element, nodeChildChild as Expression)) {
+          if (nodeChildChild is Argument &&
+              _checkArgumentAnnotation(node.argumentList,
+                  node.constructorName.element, nodeChildChild)) {
             return true;
           }
-//        param.no
-//          node.constructorName.staticElement;
           for (final ignoredConstructorCall in ignoredConstructorCalls) {
             if (ignoredConstructorCall
                 .isAssignableFrom(node.staticType!.element!)) {
@@ -350,21 +361,17 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           }
         }
         if (node is MethodInvocation) {
-          if (nodeChildChild is! Expression) {
-            _logger.warning('not an expression. $nodeChildChild ($node)');
-            // } else if (nodeChildChild != origNode) {
-            //   we only care about direct method calls.
-          } else if (
-              // check if `nodeChildChild` is actually a full argument.
-              // this can happen with sub expressions like
-              // myFunc('string'.split('').join('')); where
-              // `string'.split('')` will not be found in the parent expression.
+          // Check that `nodeChildChild` is actually a full argument. It may not
+          // be, for sub expressions such as
+          // `myFunc('string'.split('').join(''))`, where `'string'.split('')`
+          // is not itself an entry of the parent argument list.
+          if (nodeChildChild is Argument &&
               node.argumentList.arguments.contains(nodeChildChild) &&
-                  // check if the argument is annotated
-                  _checkArgumentAnnotation(
-                      node.argumentList,
-                      node.methodName.element as ExecutableElement?,
-                      nodeChildChild)) {
+              // check if the argument is annotated
+              _checkArgumentAnnotation(
+                  node.argumentList,
+                  node.methodName.element as ExecutableElement?,
+                  nodeChildChild)) {
             return true;
           }
           final target = node.target;
