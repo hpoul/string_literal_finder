@@ -272,6 +272,19 @@ class FoundStringLiteral {
             .join();
     }
   }
+
+  /// Whether anything is interpolated into this literal.
+  ///
+  /// This matters for filtering: `'/'` is a separator and can be discarded,
+  /// but `'$a - $b'` has the same letterless [textValue] and is a template
+  /// whose separator may well differ by locale.
+  late final bool isInterpolated = _isInterpolated(stringLiteral);
+
+  static bool _isInterpolated(StringLiteral literal) => switch (literal) {
+    SimpleStringLiteral() => false,
+    StringInterpolation() => true,
+    AdjacentStrings() => literal.strings.any(_isInterpolated),
+  };
 }
 
 class StringLiteralContext {

@@ -33,10 +33,30 @@ void main() {
       }
     });
 
-    test('looks past interpolation to the literal text', () {
-      // ` km` is visible copy; the interpolated value is not part of it.
+    test('discards an interpolation with no literal text at all', () {
+      // Pure substitution -- there is nothing there to translate.
+      for (final source in [r"'$error'", r"'$url'", r"'${entry.key}'"]) {
+        expect(ignores(filter, source), isTrue, reason: source);
+      }
+    });
+
+    test('keeps an interpolation with letterless text between the holes', () {
+      // These have no word in them either, but each is a template whose
+      // separator, ordering or pluralisation can differ by locale. Dropping
+      // them would hide exactly the bugs this tool is best at finding.
+      for (final source in [
+        r"' $unit'",
+        r"'$a – $b'",
+        r"'${w} × ${h}'",
+        r"'$monthDay, ${format.year(local)}'",
+        r"'$count $noun${count == 1 ? '' : 's'}'",
+      ]) {
+        expect(ignores(filter, source), isFalse, reason: source);
+      }
+    });
+
+    test('keeps interpolated copy', () {
       expect(ignores(filter, r"'$distance km'"), isFalse);
-      expect(ignores(filter, r"'$a/$b'"), isTrue);
     });
 
     test('sees non-latin letters', () {

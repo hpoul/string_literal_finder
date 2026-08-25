@@ -42,8 +42,8 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
 * `--cache-dir`: reuse the analyzer's linked summaries between runs. 12.6s to
   5.4s on a 146-file Flutter `lib/` (16.0s in 1.5.0+1).
 * Opt-in noise filters, all off by default: `--ignore-symbols` (literals with
-  no letters, -20% with no false negatives), `--min-length`, `--ignore-pattern`
-  and `--prose-only`. See the README for measured trade-offs.
+  no word in them, -16%), `--min-length`, `--ignore-pattern` and
+  `--prose-only`. See the README for measured trade-offs.
 * `--no-analysis-options` to ignore `analysis_options.yaml` from the CLI.
 
 ### Changed

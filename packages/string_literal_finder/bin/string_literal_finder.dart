@@ -88,9 +88,9 @@ ArgParser _buildParser() => ArgParser()
     _argIgnoreSymbols,
     negatable: false,
     help:
-        'Ignore literals containing no letters at all (punctuation, digits, '
-        'whitespace). Removed 20% of findings on a real corpus with no false '
-        'negatives; the recommended first filter.',
+        'Ignore literals with no word in them: punctuation, digits and dates, '
+        'plus pure substitutions like \'\$error\'. Keeps templates such as '
+        "' \$unit'. Removed 16% of findings on a real corpus; start here.",
   )
   ..addFlag(
     _argProseOnly,

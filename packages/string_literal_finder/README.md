@@ -131,13 +131,21 @@ one.
 
 | flag | effect on a real 2724-finding corpus | risk |
 | ---- | ------------------------------------ | ---- |
-| `--ignore-symbols` | −20% | none observed: it only drops literals with no letter in them at all (`''`, `'/'`, `'0'`, `' · '`) |
+| `--ignore-symbols` | −16% | low: drops literals with no word in them (`''`, `'/'`, `'0'`, `'2026-08-12'`) and pure substitutions (`'$error'`). Keeps `' $unit'` and `'$a – $b'` — see below |
 | `--min-length=<n>` | −20% at `n=2` | blunter version of the same idea; also drops `'OK'`, `'No'`, `'de'` |
 | `--ignore-pattern=<regex>` | depends | yours to choose; repeatable |
 | `--prose-only` | −67% | **high** — also drops `'Cancel'`, `'Back'`, `'Hidden'`. Use it to triage the biggest wins, not as a gate |
 
 Start with `--ignore-symbols`. Measure the rest against your own code with
 `--format=json` before trusting them.
+
+`--ignore-symbols` deliberately **keeps** an interpolation whose literal text
+is letterless, such as `' $unit'`, `'$a – $b'`, `'${w} × ${h}'` or
+`'$count $noun${count == 1 ? '' : 's'}'`. They look like punctuation by any
+simple measure, but each is a template whose separator, ordering or
+pluralisation can differ by locale — which is among the most valuable things
+this tool finds. Only interpolations with *no* literal text at all (`'$error'`)
+are dropped.
 
 ## Integration with the IDE analyzer
 

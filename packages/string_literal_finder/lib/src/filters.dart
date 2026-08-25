@@ -22,28 +22,40 @@ sealed class LiteralFilter {
   String get description;
 }
 
-/// Discards literals which contain no letter at all.
+/// Discards literals with no word in them, which therefore have nothing to
+/// translate.
 ///
-/// Catches empty strings, whitespace, digits, punctuation and separators:
-/// `''`, `' '`, `'/'`, `'-'`, `'.'`, `','`, `':'`, `'0'`, `'\n'`, `' · '`.
-/// Nothing here can be translated, because there is no word in it.
+/// Two shapes qualify:
 ///
-/// This is the filter to reach for first: it removed 20% of all findings on the
-/// measured corpus without discarding a single translatable string. The one
-/// case it gets wrong is a punctuation mark that genuinely differs by locale,
-/// such as a list separator or a decimal point — which should come from
-/// `intl` formatting rather than a literal anyway.
+///   * a plain literal containing no letter — `''`, `' '`, `'/'`, `'-'`,
+///     `'0'`, `'\n'`, `' · '`, `'2026-08-12'`;
+///   * an interpolation with no literal text at all — `'$error'`, `'$url'`,
+///     `'${entry.key}'` — which is pure substitution.
+///
+/// It removed 16% of findings on the measured corpus. This is the filter to
+/// reach for first.
+///
+/// **An interpolation with letterless text between the holes is deliberately
+/// kept**, even though it also has no word in it. `' $unit'`, `'$a – $b'`,
+/// `'${w} × ${h}'` and `'$count $noun${count == 1 ? '' : 's'}'` all look like
+/// punctuation by this measure, and all of them are templates whose separator,
+/// ordering or pluralisation can differ by locale. Those are among the most
+/// valuable things this tool finds, so they are not filtered.
 final class NoLetterFilter extends LiteralFilter {
   const NoLetterFilter();
 
   static final _letter = RegExp(r'\p{L}', unicode: true);
 
   @override
-  bool shouldIgnore(FoundStringLiteral literal) =>
-      !_letter.hasMatch(literal.textValue);
+  bool shouldIgnore(FoundStringLiteral literal) {
+    if (_letter.hasMatch(literal.textValue)) {
+      return false;
+    }
+    return !literal.isInterpolated || literal.textValue.isEmpty;
+  }
 
   @override
-  String get description => 'containing no letters';
+  String get description => 'containing no words';
 }
 
 /// Discards literals whose visible text is shorter than [minLength].
