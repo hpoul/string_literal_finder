@@ -84,8 +84,10 @@ class LiteralStringRule extends AnalysisRule {
   @override
   void registerNodeProcessors(
       RuleVisitorRegistry registry, RuleContext context) {
-    // TODO check analysis_options file for ignored files.
-    // https://github.com/dart-lang/sdk/issues/61770
+    // The plugin framework has no API for rule specific configuration yet,
+    // so the `string_literal_finder:` section of `analysis_options.yaml` is
+    // parsed by hand in `findAnalysisOptions` below.
+    // See https://github.com/dart-lang/sdk/issues/63098
     final visitor = StringLiteralVisitor.context(
         context: () => StringLiteralContext(
               filePath: context.currentUnit?.file.path ?? '',
@@ -118,8 +120,12 @@ class LiteralStringRule extends AnalysisRule {
             stringCode,
           ]);
         });
+    // All three concrete `StringLiteral` subtypes have to be registered
+    // individually. Omitting `StringInterpolation` used to make the plugin
+    // blind to exactly the literals that matter most, e.g. `'$distance km'`.
     registry.addSimpleStringLiteral(this, visitor);
     registry.addAdjacentStrings(this, visitor);
+    registry.addStringInterpolation(this, visitor);
   }
 }
 

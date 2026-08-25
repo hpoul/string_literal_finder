@@ -199,13 +199,37 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   final StringLiteralContext Function() context;
   final void Function(FoundStringLiteral foundStringLiteral) foundStringLiteral;
 
+  /// Whether [node] is merely an operand of an enclosing [AdjacentStrings],
+  /// i.e. part of a larger literal which is reported as a whole.
+  ///
+  /// `'foo' 'bar'` is one string as far as the author is concerned, so it must
+  /// produce one finding, not three.
+  static bool _isPartOfEnclosingLiteral(StringLiteral node) =>
+      node.parent is AdjacentStrings;
+
+  /// The expressions interpolated into [node], which are the only children of
+  /// a string literal that can contain further string literals.
+  static Iterable<Expression> _interpolatedExpressions(
+      StringLiteral node) sync* {
+    switch (node) {
+      case AdjacentStrings():
+        for (final part in node.strings) {
+          yield* _interpolatedExpressions(part);
+        }
+      case StringInterpolation():
+        for (final element in node.elements) {
+          if (element is InterpolationExpression) {
+            yield element.expression;
+          }
+        }
+      case SimpleStringLiteral():
+        break;
+    }
+  }
+
   @override
   R? visitStringLiteral(StringLiteral node) {
-//    final previous = node.findPrevious(node.beginToken);
-    final parent = node.parent;
-    final pp = node.parent?.parent;
-
-    if (_shouldIgnore(node)) {
+    if (_isPartOfEnclosingLiteral(node) || _shouldIgnore(node)) {
       return null;
     }
 
@@ -218,15 +242,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     final loc = lineInfo.getLocation(begin);
     final locEnd = lineInfo.getLocation(end);
 
-    final next = node.endToken.next;
-    final nextNext = next?.next;
-    _logger.finest(
-        '''Found string literal (${loc.lineNumber}:${loc.columnNumber}) $node
-         - parent: $parent (${parent.runtimeType})
-         - parentParent: $pp (${pp.runtimeType} / ${pp!.parent?.runtimeType})
-         - next: $next
-         - nextNext: $nextNext 
-         - precedingComments: ${node.beginToken.precedingComments}''');
+    // Note: the message is built lazily. Interpolating it eagerly cost a
+    // measurable amount of time on large code bases, since it ran for every
+    // literal regardless of the configured log level.
+    _logger.finest(() =>
+        'Found string literal (${loc.lineNumber}:${loc.columnNumber}) $node '
+        '- parent: ${node.parent.runtimeType}');
     foundStringLiteral(FoundStringLiteral(
       filePath: context().filePath,
       loc: loc,
@@ -234,7 +255,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
       stringValue: node.stringValue,
       stringLiteral: node,
     ));
-    return super.visitStringLiteral(node);
+    // Descend only into interpolated expressions. Visiting all children would
+    // re-report the operands of an `AdjacentStrings` as literals of their own.
+    for (final expression in _interpolatedExpressions(node)) {
+      expression.accept(this);
+    }
+    return null;
   }
 
   /// Checks whether the formal parameter which [argument] is bound to is

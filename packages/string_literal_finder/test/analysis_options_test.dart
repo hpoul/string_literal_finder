@@ -1,13 +1,21 @@
+import 'package:analyzer/file_system/file_system.dart';
 import 'package:analyzer/file_system/memory_file_system.dart';
 import 'package:string_literal_finder/main.dart' show AnalysisOptions;
 import 'package:test/test.dart';
+
+/// [MemoryResourceProvider] only accepts absolute paths, which are spelled
+/// differently on Windows.
+Folder _root(MemoryResourceProvider resource, String name) {
+  final context = resource.pathContext;
+  return resource
+      .getFolder(context.join(context.rootPrefix(context.current), name));
+}
 
 void main() {
   group('options', () {
     test('load options', () {
       final resource = MemoryResourceProvider();
-      final opts = AnalysisOptions.loadFromYaml(
-          resource.getFolder(resource.convertPath('/test')), '''
+      final opts = AnalysisOptions.loadFromYaml(_root(resource, 'test'), '''
 string_literal_finder:
   exclude_globs:
     - '_tools/**'
@@ -22,8 +30,7 @@ string_literal_finder:
     });
     test('empty options', () {
       final resource = MemoryResourceProvider();
-      final opts = AnalysisOptions.loadFromYaml(
-          resource.getFolder(resource.convertPath('/test')), '''
+      final opts = AnalysisOptions.loadFromYaml(_root(resource, 'test'), '''
 include: loremIpsum
 
 analyzer:
