@@ -149,9 +149,15 @@ Future<void> main(List<String> arguments) async {
   // closes stdout under us, and the sink reports that as an *asynchronous*
   // error no try/catch here can see. Unguarded it prints twenty lines of
   // stack trace over whatever the consumer was showing.
+  //
+  // The error is swallowed rather than acted on. Exiting here would race the
+  // run that is still in progress: the exit code would not have been computed
+  // yet (so a failing gate would report success) and a `--metrics-output-file`
+  // being written would be truncated. Losing output the consumer has stopped
+  // reading is fine; losing the exit code is not.
   await runZonedGuarded(() => _main(arguments), (error, stackTrace) {
     if (_isBrokenPipe(error)) {
-      exit(exitCode);
+      return;
     }
     _logger.severe('Error during analysis.', error, stackTrace);
     exit(_exitError);

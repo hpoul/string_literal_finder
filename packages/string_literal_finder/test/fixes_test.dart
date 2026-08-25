@@ -90,6 +90,18 @@ void g() {
       );
     });
 
+    test('does not extend a trailing doc comment', () async {
+      // Appending to a `///` would put the marker into the rendered docs of
+      // whatever it documents.
+      final result = await fix('''
+void f(String v) {}
+void g() {
+  f('target'); /// docs for something else
+}
+''');
+      expect(result, contains("/// docs for something else // NON-NLS"));
+    });
+
     test('declines when a block comment on the line spans further', () async {
       // Appending at the end of this line would land inside the author's
       // comment prose.
@@ -258,6 +270,36 @@ class C {
 '''),
         isNull,
       );
+    });
+
+    test('declines for an enum instance field', () async {
+      // Enum constructors are implicitly const even when none is written, so
+      // the initializer has to be constant. Nothing here says `const`.
+      expect(
+        await fix('''
+enum E {
+  a;
+  final String s = 'target';
+}
+'''),
+        isNull,
+      );
+    });
+
+    test('a const factory does not force const field initializers', () async {
+      // `const factory` redirects and declares no fields, so wrapping is safe.
+      final result = await fix('''
+class C {
+  C.gen();
+  const factory C() = D;
+  final String s = 'target';
+}
+class D implements C {
+  const D();
+  String get s => '';
+}
+''');
+      expect(result, contains("final String s = nonNls('target');"));
     });
 
     test('still wraps a field in a class with no const constructor', () async {

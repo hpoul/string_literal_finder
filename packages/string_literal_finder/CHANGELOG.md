@@ -33,7 +33,10 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
   `Broken pipe` stack trace over its output.
 * `--prose-only` discarded phrases whose first word ended in punctuation,
   such as `'Hello, world'`, and its pattern backtracked quadratically -- 41
-  seconds to reject a 200,000 character literal with no whitespace.
+  seconds to reject a 200,000 character literal with no whitespace. It now
+  counts whitespace-separated words containing a letter, which also **reports
+  more** than before: `'a - b'`, `'Yes / No'` and `'word 42 word'` were
+  discarded and no longer are.
 * `@NonNls` on a **named** parameter silently stopped suppressing. analyzer 13
   replaced `NamedExpression` with `NamedArgument`, which is not an `Expression`,
   so the check either skipped the argument or threw and swallowed it.

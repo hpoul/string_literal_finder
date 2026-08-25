@@ -137,6 +137,9 @@ _CommentPlacement? _commentPlacement(
   final extendsLineComment =
       trailing != null &&
       trailing.type == TokenType.SINGLE_LINE_COMMENT &&
+      // A `///` comment documents whatever follows it, so appending the marker
+      // would put it in the next declaration's rendered documentation.
+      !trailing.lexeme.startsWith('///') &&
       trailing.end == endOfLine;
   return (
     offset: endOfLine,
@@ -244,14 +247,22 @@ bool _isConstFieldDeclaration(FieldDeclaration node) {
   }
   // Since analyzer 12 members hang off a `ClassBody`/`EnumBody`, so the
   // field's parent is the body rather than the declaration.
-  final members = switch (node.parent) {
-    BlockClassBody(:final members) => members,
-    BlockEnumBody(:final members) => members,
-    _ => null,
+  return switch (node.parent) {
+    // Every enum constructor is const whether or not it says so, so an enum's
+    // instance field initializer is always a constant context.
+    BlockEnumBody() => true,
+    BlockClassBody(:final members) => members.any(
+      _isConstGenerativeConstructor,
+    ),
+    _ => false,
   };
-  return members?.any(
-        (member) =>
-            member is ConstructorDeclaration && member.constKeyword != null,
-      ) ??
-      false;
 }
+
+/// Whether [member] is a const constructor that forces field initializers to
+/// be constant.
+///
+/// A `const factory` does not: it redirects, and declares no fields of its own.
+bool _isConstGenerativeConstructor(ClassMember member) =>
+    member is ConstructorDeclaration &&
+    member.constKeyword != null &&
+    member.factoryKeyword == null;

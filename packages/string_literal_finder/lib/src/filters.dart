@@ -134,6 +134,10 @@ final class ProseOnlyFilter extends LiteralFilter {
   /// Whether the text has two or more whitespace-separated runs containing a
   /// letter.
   ///
+  /// Slightly more generous than "two adjacent words": `'a - b'` and
+  /// `'Yes / No'` count, because the letter-bearing runs need not be next to
+  /// each other. That errs towards reporting, which is the right direction.
+  ///
   /// Split rather than matched. The equivalent pattern, `\p{L}\S*\s+\S*\p{L}`,
   /// backtracks quadratically: on a 200,000 character literal with no
   /// whitespace -- an embedded data URI, say -- it took 41 seconds to decide

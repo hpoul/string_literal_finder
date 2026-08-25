@@ -47,18 +47,28 @@ class LiteralStringRule extends AnalysisRule {
   /// the analyzer.
   final Map<String, (int stamp, AnalysisOptions options)> _analysisOptions = {};
 
-  /// Directories already known to have no options file above them. Without
-  /// this a project with no `analysis_options.yaml` walks to the filesystem
-  /// root again for every literal.
-  final Set<String> _withoutOptions = {};
+  /// Directories known to have had no options file above them, and when that
+  /// was established. Without this a project with no `analysis_options.yaml`
+  /// walks to the filesystem root again for every literal.
+  ///
+  /// Entries expire, because a negative answer can stop being true: the point
+  /// is to collapse thousands of walks per second down to one, not to decide
+  /// once for the lifetime of the analysis server that a project will never
+  /// gain an `analysis_options.yaml`.
+  final Map<String, DateTime> _withoutOptions = {};
+
+  static const _negativeCacheTtl = Duration(seconds: 10);
 
   AnalysisOptions? findAnalysisOptions(File? file) {
     if (file == null) {
       return null;
     }
+    final now = DateTime.now();
     final searched = <String>[];
     for (var dir = file.parent; ; dir = dir.parent) {
-      if (_withoutOptions.contains(dir.path)) {
+      final knownEmptyAt = _withoutOptions[dir.path];
+      if (knownEmptyAt != null &&
+          now.difference(knownEmptyAt) < _negativeCacheTtl) {
         break;
       }
       searched.add(dir.path);
@@ -79,20 +89,25 @@ class LiteralStringRule extends AnalysisRule {
           return options;
         }
       } catch (e, stackTrace) {
-        // Failing here silently disables every exclude_glob, so say so.
+        // Failing here silently disables every exclude_glob, so say so. Return
+        // rather than break: caching this as "no options above here" would
+        // turn a malformed or briefly unreadable file into a permanent one,
+        // surviving the fix that repairs it.
         _logger.warning(
           'Unable to read analysis options near ${dir.path}',
           e,
           stackTrace,
         );
-        break;
+        return null;
       }
       // Checked after reading, so an options file at the root is still found.
       if (dir.isRoot) {
         break;
       }
     }
-    _withoutOptions.addAll(searched);
+    for (final path in searched) {
+      _withoutOptions[path] = now;
+    }
     return null;
   }
 
