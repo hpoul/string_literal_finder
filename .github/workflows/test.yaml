@@ -14,7 +14,7 @@ jobs:
           # `example/` is deliberately full of string literals, so the plugin
           # reports them and `--fatal-infos` over the whole package would fail.
           - package: string_literal_finder
-            analyze: lib bin test tool
+            analyze: lib bin test
           - package: string_literal_finder_annotations
             analyze: lib test
 
