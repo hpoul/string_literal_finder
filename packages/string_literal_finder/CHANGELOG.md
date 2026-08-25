@@ -30,7 +30,8 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
 * `export` URIs were reported as literals.
 * `--format=json` wrote log records to stdout, corrupting the report.
 * `--prose-only` discarded phrases whose first word ended in punctuation,
-  such as `'Hello, world'`.
+  such as `'Hello, world'`, and its pattern backtracked quadratically -- 41
+  seconds to reject a 200,000 character literal with no whitespace.
 * `@NonNls` on a **named** parameter silently stopped suppressing. analyzer 13
   replaced `NamedExpression` with `NamedArgument`, which is not an `Expression`,
   so the check either skipped the argument or threw and swallowed it.

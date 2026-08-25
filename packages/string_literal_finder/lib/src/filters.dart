@@ -128,16 +128,29 @@ final class PatternFilter extends LiteralFilter {
 final class ProseOnlyFilter extends LiteralFilter {
   const ProseOnlyFilter();
 
-  /// Two letter-bearing words separated by whitespace.
+  static final _letter = RegExp(r'\p{L}', unicode: true);
+  static final _whitespace = RegExp(r'\s+');
+
+  /// Whether the text has two or more whitespace-separated runs containing a
+  /// letter.
   ///
-  /// The letter need not be adjacent to the gap: `'Hello, world'` and
-  /// `'Yes, delete'` are phrases, and requiring `\p{L}` immediately before the
-  /// space would discard them.
-  static final _prose = RegExp(r'\p{L}\S*\s+\S*\p{L}', unicode: true);
+  /// Split rather than matched. The equivalent pattern, `\p{L}\S*\s+\S*\p{L}`,
+  /// backtracks quadratically: on a 200,000 character literal with no
+  /// whitespace -- an embedded data URI, say -- it took 41 seconds to decide
+  /// there was no match, and this runs once per finding.
+  static bool _isProse(String text) {
+    var words = 0;
+    for (final word in text.split(_whitespace)) {
+      if (_letter.hasMatch(word) && ++words >= 2) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @override
   bool shouldIgnore(FoundStringLiteral literal) =>
-      !_prose.hasMatch(literal.textValue.trim());
+      !_isProse(literal.textValue.trim());
 
   @override
   String get description => 'not a phrase of two or more words';

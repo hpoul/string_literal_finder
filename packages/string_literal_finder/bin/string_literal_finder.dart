@@ -164,8 +164,9 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
   PrintAppender.setupLogging(
     stderrLevel: Level.SEVERE,
     level: switch (results) {
-      // In json mode stdout carries the report, so keep everything else off
-      // unless it was asked for explicitly.
+      // In json mode stdout carries the report, so nothing below SEVERE is
+      // emitted at all -- `stderrLevel` only routes SEVERE and above, so a
+      // verbose run would otherwise print onto the report.
       _ when results.flag(_argSilent) || json => Level.SEVERE,
       _ when results.flag(_argVerbose) => Level.ALL,
       _ => Level.FINE,
@@ -203,16 +204,22 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
     cachePath: results.option(_argCacheDir)?.let(path.absolute),
   );
   final filters = _buildFilters(results);
+  // Parsed before the analysis runs: discovering a typo after several minutes
+  // of work would be a poor trade.
+  final maxLiterals = results
+      .option(_argMaxLiterals)
+      ?.let((e) => _nonNegativeInt(e, _argMaxLiterals));
   final allFound = await stringLiteralFinder.start();
   final foundStringLiterals = filters.apply(allFound);
 
   if (writeBaseline) {
     final baseline = Baseline.fromFound(foundStringLiterals, absolutePath);
     await File(baselinePath!).writeAsString(baseline.toJson());
-    stdout.writeln(
-      'Recorded ${baseline.totalCount} literals in '
-      '${baseline.literals.length} files to $baselinePath.',
-    );
+    final summary =
+        'Recorded ${baseline.totalCount} literals in '
+        '${baseline.literals.length} files to $baselinePath.';
+    // stdout belongs to the report in json mode.
+    (json ? stderr : stdout).writeln(summary);
     return _exitOk;
   }
 
@@ -231,9 +238,6 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
         ),
       );
 
-  final maxLiterals = results
-      .option(_argMaxLiterals)
-      ?.let((e) => _nonNegativeInt(e, _argMaxLiterals));
   final failed = reported.length > (maxLiterals ?? 0);
 
   final metrics = <String, Object?>{

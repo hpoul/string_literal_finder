@@ -626,10 +626,16 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         lineInfo.getLocation(nextToken.offset).lineNumber == lineNumber) {
       nextToken = nextToken.next;
     }
-    final comment = nextToken?.precedingComments;
-    if (comment != null &&
-        lineInfo.getLocation(comment.offset).lineNumber == lineNumber) {
-      if (comment.value().contains('NON-NLS')) {
+    // Every comment on the line, not just the first: `/* a */ // NON-NLS`
+    // attaches both to the same token, and only the second one carries the
+    // marker.
+    for (
+      Token? comment = nextToken?.precedingComments;
+      comment != null;
+      comment = comment.next
+    ) {
+      if (lineInfo.getLocation(comment.offset).lineNumber == lineNumber &&
+          comment.lexeme.contains('NON-NLS')) {
         return true;
       }
     }

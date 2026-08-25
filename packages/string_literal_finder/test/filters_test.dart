@@ -114,6 +114,15 @@ void main() {
       }
     });
 
+    test('decides quickly on a long literal with no whitespace', () {
+      // The regex this replaced backtracked quadratically: 41 seconds for
+      // 200k characters, once per finding.
+      final blob = 'A' * 200000;
+      final sw = Stopwatch()..start();
+      expect(ignores(filter, "'$blob'"), isTrue);
+      expect(sw.elapsed, lessThan(const Duration(seconds: 2)));
+    });
+
     test('discards identifiers and paths', () {
       for (final source in [
         "'user_id'",

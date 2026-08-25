@@ -63,6 +63,58 @@ spanning''');
       },
     );
 
+    test('is not confused by // inside a string on the same line', () async {
+      // A URL is the archetypal literal someone suppresses. Grepping the line
+      // for `//` mistakes it for an existing comment and emits ` NON-NLS`
+      // with no comment marker, which does not parse.
+      expect(
+        await fix('''
+void f(String v) {}
+void g() {
+  f('https://example.com/target');
+}
+''', marker: "'https"),
+        contains("f('https://example.com/target'); // NON-NLS"),
+      );
+    });
+
+    test('is not confused by // in another literal on the line', () async {
+      expect(
+        await fix('''
+void f(String v) {}
+void g() {
+  f('target'); f('http://example.com');
+}
+'''),
+        contains("f('http://example.com'); // NON-NLS"),
+      );
+    });
+
+    test('declines when a block comment on the line spans further', () async {
+      // Appending at the end of this line would land inside the author's
+      // comment prose.
+      expect(
+        await fix('''
+void f(String v) {}
+void g() {
+  f('target'); /* a comment
+  spanning lines */
+}
+'''),
+        isNull,
+      );
+    });
+
+    test('appends after a block comment rather than inside it', () async {
+      final result = await fix('''
+void f(String v) {}
+void g() {
+  f('target'); /* note */
+}
+''');
+      expect(result, contains("f('target'); /* note */ // NON-NLS"));
+    });
+
     test('declines when the line continues into a multi-line string', () async {
       // Appending at the end of this line would put the comment *inside* the
       // contents of `multi`, silently changing the program.
@@ -156,6 +208,67 @@ const value = C('target');
         );
       },
     );
+
+    test('declines for an enum constant argument', () async {
+      expect(
+        await fix('''
+enum E {
+  a('target');
+  const E(this.s);
+  final String s;
+}
+'''),
+        isNull,
+      );
+    });
+
+    test('declines in a const constructor initializer', () async {
+      expect(
+        await fix('''
+class C {
+  const C() : s = 'target';
+  final String s;
+}
+'''),
+        isNull,
+      );
+    });
+
+    test('declines in a const constructor assert message', () async {
+      expect(
+        await fix('''
+class C {
+  const C(this.x) : assert(x != '', 'target');
+  final String x;
+}
+'''),
+        isNull,
+      );
+    });
+
+    test('declines for a field initialized inline in a const class', () async {
+      // The field initializer has to be constant because the class declares a
+      // const constructor, even though nothing here says `const`.
+      expect(
+        await fix('''
+class C {
+  const C();
+  final String s = 'target';
+}
+'''),
+        isNull,
+      );
+    });
+
+    test('still wraps a field in a class with no const constructor', () async {
+      final result = await fix('''
+class C {
+  C();
+  final String s = 'target';
+}
+''');
+      expect(result, contains("final String s = nonNls('target');"));
+    });
 
     test('declines in a default parameter value', () async {
       expect(

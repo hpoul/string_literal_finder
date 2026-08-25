@@ -61,55 +61,103 @@ class AddNonNlsComment extends ResolvedCorrectionProducer {
     if (literal == null) {
       return;
     }
-    final lineInfo = unitResult.lineInfo;
-    final offset = _endOfLineAfter(literal, unitResult);
-    if (offset == null) {
+    final placement = _commentPlacement(literal, unitResult);
+    if (placement == null) {
       return;
     }
-    // A trailing comment already on the line is fine to extend: the finder
-    // looks for `NON-NLS` anywhere in the comment text.
-    final line = lineInfo.getLocation(literal.end).lineNumber;
-    final lineStart = lineInfo.getOffsetOfLine(line - 1);
-    final text = unitResult.content.substring(lineStart, offset);
-    final suffix = text.contains('//') ? ' NON-NLS' : ' // NON-NLS';
     await builder.addDartFileEdit(file, (builder) {
-      builder.addSimpleInsertion(offset, suffix);
+      builder.addSimpleInsertion(placement.offset, placement.text);
     });
   }
 }
 
-/// The end of the line [literal] ends on, or null if a comment cannot safely be
-/// appended there.
+/// Where and what to insert to suppress a literal, or null if no safe place
+/// exists on its line.
+typedef _CommentPlacement = ({int offset, String text});
+
+/// Works out how to append `// NON-NLS` to the line [literal] ends on.
 ///
-/// It cannot when a token starting on that line runs past the end of it, which
-/// happens for a multi-line string: `final a = 'x'; final b = '''` would put
-/// the comment *inside* `b`'s contents rather than after a statement.
-int? _endOfLineAfter(StringLiteral literal, ResolvedUnitResult unitResult) {
+/// Everything here is decided from the token stream rather than from the line's
+/// text. Reading the text tempts you into `line.contains('//')` to detect an
+/// existing comment, which is wrong for `f('https://example.com')` — a URL is
+/// the archetypal literal someone suppresses, and treating it as a comment
+/// produces ` NON-NLS` with no `//`, which does not parse.
+_CommentPlacement? _commentPlacement(
+  StringLiteral literal,
+  ResolvedUnitResult unitResult,
+) {
   final lineInfo = unitResult.lineInfo;
   final line = lineInfo.getLocation(literal.end).lineNumber;
-  for (
-    Token? token = literal.endToken.next;
-    token != null && token.type != TokenType.EOF;
-    token = token.next
-  ) {
-    if (lineInfo.getLocation(token.offset).lineNumber != line) {
-      break;
+  bool onLine(int offset) => lineInfo.getLocation(offset).lineNumber == line;
+
+  // Walk to the first token on a later line, collecting the comments attached
+  // along the way. A comment is attached to the token that follows it.
+  final comments = <Token>[];
+  Token? token = literal.endToken.next;
+  while (token != null && token.type != TokenType.EOF && onLine(token.offset)) {
+    // A token that starts on this line but ends after it -- a multi-line
+    // string, say -- means the end of the line is inside it, and appending
+    // there would change that token's contents rather than comment the line.
+    if (!onLine(token.end)) {
+      return null;
     }
-    if (lineInfo.getLocation(token.end).lineNumber != line) {
+    _collectComments(token, comments, onLine);
+    token = token.next;
+  }
+  if (token != null) {
+    _collectComments(token, comments, onLine);
+  }
+
+  for (final comment in comments) {
+    // A block comment opening on this line and closing on a later one has the
+    // end of the line inside it, so appending would edit the author's prose.
+    if (!onLine(comment.end)) {
       return null;
     }
   }
+
   final content = unitResult.content;
-  final lineCount = lineInfo.lineCount;
-  if (line >= lineCount) {
-    return content.length;
+  final int endOfLine;
+  if (line >= lineInfo.lineCount) {
+    endOfLine = content.length;
+  } else {
+    var end = lineInfo.getOffsetOfLine(line) - 1;
+    // Leave a `\r\n` intact.
+    if (end > 0 && content.codeUnitAt(end - 1) == 0x0d) {
+      end--;
+    }
+    endOfLine = end;
   }
-  var end = lineInfo.getOffsetOfLine(line) - 1;
-  // Leave a `\r\n` intact.
-  if (end > 0 && content.codeUnitAt(end - 1) == 0x0d) {
-    end--;
+
+  // Extending a trailing `//` comment is enough, because the finder looks for
+  // NON-NLS anywhere in the comment's text. A block comment is not extended:
+  // it may be followed by a line comment, and only the trailing one reliably
+  // covers the rest of the line.
+  final trailing = comments.lastOrNull;
+  final extendsLineComment =
+      trailing != null &&
+      trailing.type == TokenType.SINGLE_LINE_COMMENT &&
+      trailing.end == endOfLine;
+  return (
+    offset: endOfLine,
+    text: extendsLineComment ? ' NON-NLS' : ' // NON-NLS',
+  );
+}
+
+void _collectComments(
+  Token token,
+  List<Token> into,
+  bool Function(int offset) onLine,
+) {
+  for (
+    Token? comment = token.precedingComments;
+    comment != null;
+    comment = comment.next
+  ) {
+    if (onLine(comment.offset)) {
+      into.add(comment);
+    }
   }
-  return end;
 }
 
 /// Wraps the literal in `nonNls(...)`.
@@ -163,14 +211,47 @@ class WrapWithNonNls extends ResolvedCorrectionProducer {
 }
 
 /// Whether [node] is somewhere a non-constant call cannot appear.
+///
+/// `nonNls()` is an ordinary function call, so wrapping a literal anywhere
+/// constant is required turns compiling code into an error.
 bool _isConstantContext(AstNode node) => switch (node) {
   Annotation() => true,
   ConstantPattern() => true,
   SwitchCase() => true,
+  // Arguments of an enum constant are always const.
+  EnumConstantArguments() => true,
+  // A const generative constructor has no body, so anything reached through
+  // one is an initializer or an assert message -- both constant.
+  ConstructorDeclaration(:final constKeyword) => constKeyword != null,
   InstanceCreationExpression(:final isConst) => isConst,
   TypedLiteral(:final isConst) => isConst,
   VariableDeclarationList(:final isConst) => isConst,
-  FieldDeclaration(fields: VariableDeclarationList(:final isConst)) => isConst,
+  FieldDeclaration() => _isConstFieldDeclaration(node),
   FormalParameterDefaultClause() => true,
   _ => false,
 };
+
+/// Whether a field's initializer has to be constant.
+///
+/// Beyond an explicitly `const` field, a non-late instance field initialized
+/// inline must be constant if its class declares a const constructor.
+bool _isConstFieldDeclaration(FieldDeclaration node) {
+  if (node.fields.isConst) {
+    return true;
+  }
+  if (node.isStatic || node.fields.isLate) {
+    return false;
+  }
+  // Since analyzer 12 members hang off a `ClassBody`/`EnumBody`, so the
+  // field's parent is the body rather than the declaration.
+  final members = switch (node.parent) {
+    BlockClassBody(:final members) => members,
+    BlockEnumBody(:final members) => members,
+    _ => null,
+  };
+  return members?.any(
+        (member) =>
+            member is ConstructorDeclaration && member.constKeyword != null,
+      ) ??
+      false;
+}
