@@ -1,3 +1,63 @@
+## 2.0.0-dev.2
+
+**Analyzer plugins are configured differently now.** Replace
+
+```yaml
+analyzer:
+  plugins:
+    - string_literal_finder
+```
+
+with a **top-level** `plugins:` key:
+
+```yaml
+plugins:
+  string_literal_finder: ^2.0.0
+```
+
+The old form only loads the legacy `analyzer_plugin` mechanism, so since
+2.0.0-dev.1 it has silently loaded nothing.
+
+### Fixed
+
+* `@NonNls` on a **named** parameter silently stopped suppressing. analyzer 13
+  replaced `NamedExpression` with `NamedArgument`, which is not an `Expression`,
+  so the check either skipped the argument or threw and swallowed it.
+* Adjacent strings were reported three times — once for `'foo' 'bar'` and once
+  for each operand. They are now one finding.
+* The analyzer plugin never saw string interpolations: it registered
+  `SimpleStringLiteral` and `AdjacentStrings` but not `StringInterpolation`, so
+  `'$distance km'` was reported by the CLI and missed in the IDE.
+* `exclude_globs` from `analysis_options.yaml` was documented but only ever
+  honoured by the plugin; the command line ignored it entirely.
+
+### Added
+
+* `--baseline` / `--write-baseline`: record the literals a project already has
+  and fail only on new ones, which is what makes this adoptable on a code base
+  with thousands of them. Entries are keyed by literal source text, not by line.
+* `--max-literals=<n>`: fail only above a threshold.
+* `--format=json`: every finding on stdout, for CI annotations. The previous
+  JSON was counts only.
+* `--cache-dir`: reuse the analyzer's linked summaries between runs. 12.6s to
+  5.4s on a 146-file Flutter `lib/` (16.0s in 1.5.0+1).
+* Opt-in noise filters, all off by default: `--ignore-symbols` (literals with
+  no letters, -20% with no false negatives), `--min-length`, `--ignore-pattern`
+  and `--prose-only`. See the README for measured trade-offs.
+* `--no-analysis-options` to ignore `analysis_options.yaml` from the CLI.
+
+### Changed
+
+* Requires Dart 3.11 (analyzer 14 does). The constraint said `>=3.3.0`.
+* analyzer 14, `analysis_server_plugin` 0.3.20, source_gen 4.3.
+* Exit code 2 now means "bad command line"; it used to share exit 1 with
+  "literals found", which CI cannot tell apart. Usage and errors go to stderr.
+* `StringLiteralFinder.start()` no longer logs every finding at INFO.
+* A syntactic pre-pass skips resolving files that cannot contain a finding.
+* Removed the unused `recase` dependency and the dead pre-2.0 plugin
+  implementation.
+* Still missing: quick fixes.
+
 ## 2.0.0-dev.1
 
 * Migrate to `analysis_server_plugin` instead of `analyzer_plugin`

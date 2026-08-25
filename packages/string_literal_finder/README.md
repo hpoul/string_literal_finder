@@ -5,64 +5,204 @@
 
 # string_literal_finder
 
-Simple command line application and **analyzer plugin** to find non translated string literals
-in dart code. Makes sure when localizing your app that you externalized all strings.
+Finds string literals in Dart code which should have been externalized for
+translation. Useful when localizing an app, and as a CI check that keeps new
+hardcoded strings from creeping back in.
 
-Tries to be smart about ignoring specific strings.
+It ships two front ends over the same analysis:
 
-## Installation & Usage
+* a **command line tool**, for CI, and
+* an **analyzer plugin**, for warnings directly in your IDE.
+
+Both apply the same rules and read the same configuration.
+
+## Command line
 
 ```shell
-$ pub global activate string_literal_finder
-$ pub global run string_literal_finder --path=example
-2020-08-08 15:11:31.273227 INFO string_literal_finder - Found 1 literals:
-2020-08-08 15:11:31.274592 INFO string_literal_finder - lib/example.dart:17:30 'not translated'
-Found 1 literals in 1 files.
+dart pub global activate string_literal_finder
+dart pub global run string_literal_finder --path=lib
 ```
 
-## Integration with IDE analyzer
+```
+lib/example.dart:17:30 'not translated'
+Found 1 literal in 1 file.
+{
+  "stringLiterals": 1,
+  "stringLiteralsFiles": 1,
+  "filesAnalyzed": 1,
+  "filesSkipped": 0,
+  "filesWithoutLiterals": 0
+}
+```
 
-It is possible to get the warnings directly in your IDE by
-configuring `string_literal_finder` as a analyyer plugin.
+Exit codes:
+
+| code | meaning |
+| ---- | ------- |
+| 0    | nothing to report |
+| 1    | literals were found which the configured gate does not allow |
+| 2    | the command line could not be understood |
+| 70   | something went wrong during analysis |
+
+## Adopting this on a project that already has literals
+
+A real code base has thousands of string literals, and a check that fails on
+day one gets switched off. Record the current state once, commit it, and gate
+on additions:
+
+```shell
+# once, and commit the result
+dart run string_literal_finder --path=lib \
+    --baseline=string_literals_baseline.json --write-baseline
+
+# in CI
+dart run string_literal_finder --path=lib \
+    --baseline=string_literals_baseline.json
+```
+
+The second command exits 0 while nothing new appears, and exits 1 listing only
+the literals that are not in the baseline. As strings get externalized, re-run
+`--write-baseline` to shrink it; the run tells you how many recorded entries
+have gone.
+
+Baseline entries are keyed by file and by the literal *as written*, not by line
+number, so reformatting, moving code within a file, or editing an unrelated
+line will not make the check fail. Adding a second copy of a literal to a file
+that already had one is still reported.
+
+`--max-literals=<n>` is the cruder alternative if you would rather track a
+single number than a file.
+
+### Machine-readable output
+
+`--format=json` writes every finding to stdout, for CI annotations:
+
+```json
+{
+  "ok": false,
+  "metrics": { "stringLiterals": 1, "...": "..." },
+  "literals": [
+    {
+      "path": "example.dart",
+      "line": 17, "column": 30, "endLine": 17, "endColumn": 46,
+      "literal": "'not translated'",
+      "value": "not translated"
+    }
+  ]
+}
+```
+
+Diagnostics go to stderr, so stdout stays parseable.
+
+### Speed
+
+Resolving Dart source is ~97% of a run. `--cache-dir` keeps the analyzer's
+linked summaries between runs. Measured best-of-three on an M-series Mac:
+
+| corpus | v1.5.0+1 | now | now, warm cache |
+| ------ | -------- | --- | --------------- |
+| Flutter app, 146 files in `lib/` | 16.0s | 12.6s | **5.4s** |
+| Flutter app, 117 files in `lib/` | 16.1s | 14.5s | **4.8s** |
+
+The cache is 70–95 MB for a Flutter app and is safe to cache in CI:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: .dart_tool/string_literal_finder
+    key: slf-${{ hashFiles('pubspec.lock') }}
+- run: dart run string_literal_finder --path=lib
+        --cache-dir=.dart_tool/string_literal_finder
+        --baseline=string_literals_baseline.json
+```
+
+## Reducing noise
+
+Out of the box the tool reports *every* literal it cannot prove is
+non-translatable. On a real Flutter application that is roughly eight findings
+for every genuinely user-visible string; the rest are map keys, asset
+extensions, `switch` cases and punctuation.
+
+The best fix is to mark them at the source, with the suppressions below — that
+is precise, and it documents intent. Where that is too much work up front,
+these filters trade recall for signal. **They are all off by default**, because
+a tool that silently hides a real untranslated string is worse than a noisy
+one.
+
+| flag | effect on a real 2724-finding corpus | risk |
+| ---- | ------------------------------------ | ---- |
+| `--ignore-symbols` | −20% | none observed: it only drops literals with no letter in them at all (`''`, `'/'`, `'0'`, `' · '`) |
+| `--min-length=<n>` | −20% at `n=2` | blunter version of the same idea; also drops `'OK'`, `'No'`, `'de'` |
+| `--ignore-pattern=<regex>` | depends | yours to choose; repeatable |
+| `--prose-only` | −67% | **high** — also drops `'Cancel'`, `'Back'`, `'Hidden'`. Use it to triage the biggest wins, not as a gate |
+
+Start with `--ignore-symbols`. Measure the rest against your own code with
+`--format=json` before trusting them.
+
+## Integration with the IDE analyzer
 
 ![IDE Warnings](_doc/string_literal_warning.png)
 
-1. Install dev dependency
-
-    ```shell
-    flutter pub add --dev string_literal_finder
-
-    # The above will add the following to your pubspec.yaml
-    dev_dependencies:
-      string_literal_finder: ^1.0.0 # Make sure to use the latest version.
-    ```
-   
-2. Configure `analysis_options.yaml`
+1. Add the plugin to `analysis_options.yaml`. Note this is a **top-level**
+   `plugins:` key — the older `analyzer: plugins:` form is the legacy plugin
+   mechanism and will not load this plugin.
 
     ```yaml
-    analyzer:
-      plugins:
-        - string_literal_finder
-
+    plugins:
+      string_literal_finder: ^2.0.0
     ```
 
-    optionally add additional exclude globs to `analysis_options.yaml`:
+    A local path works too:
 
     ```yaml
-    string_literal_finder:
-      exclude_globs:
-        - '**/*.g.dart'
-        - '**/*.freezed.dart'
+    plugins:
+      string_literal_finder:
+        path: ../string_literal_finder
     ```
 
-3. Restart your analyser.
+2. Restart your analyzer.
 
     ![Restart analyzer](_doc/restart_analyzer.png)
 
+Requires Dart 3.11 or newer. `dart analyze` runs analyzer plugins;
+`flutter analyze` does not.
+
+## Ignoring literals
+
+* Any argument annotated with `@NonNls` or `@NonNlsArg()`
+* Anything passed to the `nonNls()` function
+* Anything in a function, method or class annotated with `@NonNls`
+* Anything passed to the `logging` package's `Logger`
+* Arguments to annotations, and `import` / `part` / `part of` URIs
+* Constructor arguments of `Uri`, `RegExp`, `Exception`, `Error`,
+  `AssetImage`, `RouteSettings`, `ValueKey` and `MethodChannel`
+* Any line with a trailing `// NON-NLS` comment
+* Files matching `exclude_globs`, and anything ending in `.g.dart`
+
+The annotations live in a separate, dependency-free package:
+
+```shell
+dart pub add string_literal_finder_annotations
+```
+
+`// NON-NLS` applies to the line the literal *ends* on. For a call spread over
+several lines, put the comment on the line of the literal itself, or annotate
+the parameter instead.
+
+### exclude_globs
+
+```yaml
+string_literal_finder:
+  exclude_globs:
+    - '_tools/**'
+    - '**/*.freezed.dart'
+```
+
+Globs are relative to the directory holding `analysis_options.yaml`. Both the
+plugin and the command line read this; pass `--no-analysis-options` to the CLI
+to ignore it.
 
 ## Example
-
-The following dart file:
 
 ```dart
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
@@ -88,19 +228,4 @@ String ignoreFunction() {
 }
 ```
 
-will result in those warnings:
-
-```shell
-$ dart bin/string_literal_finder.dart --path=example
-2020-08-08 14:38:47.800339 INFO string_literal_finder - Found 1 literals:
-2020-08-08 14:38:47.801934 INFO string_literal_finder - lib/example.dart:17:30 'not translated'
-Found 1 literals in 1 files.
-$ 
-```
-
-# Ignored literal strings
-
-* Any argument annotated with `@NonNls` or `@NonNlsArg()`
-* Anything which is parsed into the `nonNls` function.
-* Anything passed to `logging` library `Logger` class.
-* Any line with a line end comment `// NON-NLS`
+Only `'not translated'` is reported.

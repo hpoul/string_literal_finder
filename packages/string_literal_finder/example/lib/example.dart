@@ -1,5 +1,3 @@
-library example;
-
 import 'package:logging/logging.dart';
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
 
@@ -20,14 +18,10 @@ void main() {
   exampleFunc('lorem'.split('').join(''), 'not translated2'.split('').join(''));
   _logger.finer('Lorem ipsum');
 
-  nonNls({
-    'nonNlsKey1': 'nonNlsValue1',
-  });
+  nonNls({'nonNlsKey1': 'nonNlsValue1'});
 
   @NonNls
-  final testMap = nonNls({
-    'key': 'value',
-  });
+  final testMap = nonNls({'key': 'value'});
   // since `testMap` is annotated with @NonNls, accessing the key with
   // a string literal will be ignored.
   print(testMap['key']);
