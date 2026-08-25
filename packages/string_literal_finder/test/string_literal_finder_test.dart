@@ -67,6 +67,53 @@ final _string = 'example';
       expect(found.first.stringValue, 'found');
     });
   });
+  group('literal shapes', () {
+    test('adjacent strings are one literal, not three', () async {
+      final found = await _findStrings('''
+      final _string = 'foo' 'bar';
+      ''');
+      expect(found, hasLength(1));
+      expect(found.single.sourceText, "'foo' 'bar'");
+      expect(found.single.textValue, 'foobar');
+    });
+    test('interpolation is reported, with its literal text', () async {
+      final found = await _findStrings(r'''
+      final distance = 1;
+      final _string = '$distance km';
+      ''');
+      expect(found, hasLength(1));
+      expect(found.single.sourceText, r"'$distance km'");
+      // `stringValue` is null for anything interpolated, which is why
+      // `textValue` exists.
+      expect(found.single.stringValue, isNull);
+      expect(found.single.textValue, ' km');
+    });
+    test('a literal inside an interpolation is still found', () async {
+      final found = await _findStrings(r'''
+      String f(String a) => a;
+      final _string = '${f('inner')} outer';
+      ''');
+      expect(
+        found.map((e) => e.sourceText),
+        containsAll([r"'${f('inner')} outer'", "'inner'"]),
+      );
+    });
+    test('raw and multi-line strings are found', () async {
+      final found = await _findStrings("""
+      final a = r'raw';
+      final b = '''multi
+line''';
+      """);
+      expect(found.map((e) => e.textValue), ['raw', 'multi\nline']);
+    });
+    test('an empty string is still reported by default', () async {
+      // Filtering it out is opt-in; the finder itself does not decide.
+      final found = await _findStrings('''
+      final _string = '';
+      ''');
+      expect(found, hasLength(1));
+    });
+  });
   group('ignore annotations', () {
     test('function annotation', () async {
       final found = await _findStrings('''
