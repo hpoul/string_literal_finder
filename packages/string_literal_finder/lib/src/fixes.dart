@@ -129,23 +129,37 @@ _CommentPlacement? _commentPlacement(
     endOfLine = end;
   }
 
+  final trailing = comments.lastOrNull;
+  if (trailing != null && _isDocComment(trailing)) {
+    // A `///` runs to the end of the line, so the end of the line is *inside*
+    // it. There is nowhere left to put the marker without it becoming part of
+    // the documentation of whatever the comment describes -- appending after
+    // it lands in the same token as extending it would. Decline, as for a
+    // block comment that spans the line.
+    return null;
+  }
+
   // Extending a trailing `//` comment is enough, because the finder looks for
   // NON-NLS anywhere in the comment's text. A block comment is not extended:
   // it may be followed by a line comment, and only the trailing one reliably
   // covers the rest of the line.
-  final trailing = comments.lastOrNull;
   final extendsLineComment =
       trailing != null &&
       trailing.type == TokenType.SINGLE_LINE_COMMENT &&
-      // A `///` comment documents whatever follows it, so appending the marker
-      // would put it in the next declaration's rendered documentation.
-      !trailing.lexeme.startsWith('///') &&
       trailing.end == endOfLine;
   return (
     offset: endOfLine,
     text: extendsLineComment ? ' NON-NLS' : ' // NON-NLS',
   );
 }
+
+/// Whether [comment] documents the declaration that follows it.
+///
+/// `////` is not a doc comment, however many slashes follow.
+bool _isDocComment(Token comment) =>
+    comment.type == TokenType.SINGLE_LINE_COMMENT &&
+    comment.lexeme.startsWith('///') &&
+    !comment.lexeme.startsWith('////');
 
 void _collectComments(
   Token token,

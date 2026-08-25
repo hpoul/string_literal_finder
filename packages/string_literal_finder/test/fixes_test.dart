@@ -90,16 +90,30 @@ void g() {
       );
     });
 
-    test('does not extend a trailing doc comment', () async {
-      // Appending to a `///` would put the marker into the rendered docs of
-      // whatever it documents.
-      final result = await fix('''
+    test('declines when a doc comment trails the line', () async {
+      // A `///` runs to the end of the line, so there is nowhere to put the
+      // marker that is not inside it -- appending after it lands in the token
+      // just the same, and the marker ends up in the rendered documentation
+      // of whatever follows.
+      expect(
+        await fix('''
 void f(String v) {}
 void g() {
   f('target'); /// docs for something else
 }
+'''),
+        isNull,
+      );
+    });
+
+    test('a //// comment is not a doc comment and is extended', () async {
+      final result = await fix('''
+void f(String v) {}
+void g() {
+  f('target'); //// just a separator
+}
 ''');
-      expect(result, contains("/// docs for something else // NON-NLS"));
+      expect(result, contains('//// just a separator NON-NLS'));
     });
 
     test('declines when a block comment on the line spans further', () async {

@@ -36,8 +36,13 @@ class LiteralStringRule extends AnalysisRule {
     correctionMessage: "Try externalizing literal string for translation",
   );
 
-  LiteralStringRule()
-    : super(name: 'literal_string', description: 'Finds literal strings');
+  /// [now] exists so tests can advance the clock the negative cache uses,
+  /// rather than sleeping past its TTL.
+  LiteralStringRule({DateTime Function()? now})
+    : _now = now ?? DateTime.now,
+      super(name: 'literal_string', description: 'Finds literal strings');
+
+  final DateTime Function() _now;
 
   @override
   LintCode get diagnosticCode => code;
@@ -59,11 +64,15 @@ class LiteralStringRule extends AnalysisRule {
 
   static const _negativeCacheTtl = Duration(seconds: 10);
 
+  /// Options files already complained about, so a persistently broken one is
+  /// reported once rather than once per literal.
+  final Set<String> _warnedAbout = {};
+
   AnalysisOptions? findAnalysisOptions(File? file) {
     if (file == null) {
       return null;
     }
-    final now = DateTime.now();
+    final now = _now();
     final searched = <String>[];
     for (var dir = file.parent; ; dir = dir.parent) {
       final knownEmptyAt = _withoutOptions[dir.path];
@@ -89,15 +98,18 @@ class LiteralStringRule extends AnalysisRule {
           return options;
         }
       } catch (e, stackTrace) {
-        // Failing here silently disables every exclude_glob, so say so. Return
-        // rather than break: caching this as "no options above here" would
-        // turn a malformed or briefly unreadable file into a permanent one,
-        // surviving the fix that repairs it.
-        _logger.warning(
-          'Unable to read analysis options near ${dir.path}',
-          e,
-          stackTrace,
-        );
+        // Failing here silently disables every exclude_glob, so say so -- but
+        // only once per file, since this runs for every reported literal.
+        if (_warnedAbout.add(dir.path)) {
+          _logger.warning(
+            'Unable to read analysis options near ${dir.path}',
+            e,
+            stackTrace,
+          );
+        }
+        // Return rather than break: caching this as "no options above here"
+        // would turn a malformed or briefly unreadable file into a permanent
+        // one, surviving the fix that repairs it.
         return null;
       }
       // Checked after reading, so an options file at the root is still found.
