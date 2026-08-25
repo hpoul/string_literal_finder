@@ -20,6 +20,17 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
 
 ### Fixed
 
+* A **hang**: a literal on the last line of a file with no trailing newline
+  spun forever while scanning for a `// NON-NLS` comment, because the EOF
+  token's `next` is itself. Synchronous, so nothing timed out.
+* `@NonNls` could bind to the **wrong parameter** when a named argument was
+  written before a positional one, which since Dart 2.17 is legal. In the bad
+  direction it silently suppressed a visible string.
+* The plugin reported literals nested inside an interpolation twice.
+* `export` URIs were reported as literals.
+* `--format=json` wrote log records to stdout, corrupting the report.
+* `--prose-only` discarded phrases whose first word ended in punctuation,
+  such as `'Hello, world'`.
 * `@NonNls` on a **named** parameter silently stopped suppressing. analyzer 13
   replaced `NamedExpression` with `NamedArgument`, which is not an `Expression`,
   so the check either skipped the argument or threw and swallowed it.
@@ -59,7 +70,9 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
 * A syntactic pre-pass skips resolving files that cannot contain a finding.
 * Removed the unused `recase` dependency and the dead pre-2.0 plugin
   implementation.
-* Still missing: quick fixes.
+* Quick fixes in the IDE: **Wrap with `nonNls()`** (adds the import; declines
+  in a constant context or when the annotations package is not a dependency)
+  and **Add `// NON-NLS` comment** (placed on the line the literal ends on).
 
 ## 2.0.0-dev.1
 
