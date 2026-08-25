@@ -15,8 +15,10 @@ Future<void> main(List<String> args) async {
   for (final context in collection.contexts) {
     files.addAll(context.contextRoot.analyzedFiles());
   }
-  print('contexts: ${collection.contexts.length}, analyzedFiles(): '
-      '${files.length} files in ${sw.elapsedMilliseconds}ms');
+  print(
+    'contexts: ${collection.contexts.length}, analyzedFiles(): '
+    '${files.length} files in ${sw.elapsedMilliseconds}ms',
+  );
 
   final excludes = ExcludePathChecker.excludePathDefaults;
   var resolveMs = 0;
