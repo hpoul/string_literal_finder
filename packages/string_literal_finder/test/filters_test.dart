@@ -5,7 +5,7 @@ import 'src/fake_literal.dart';
 
 void main() {
   bool ignores(LiteralFilter filter, String source) =>
-      filter.shouldIgnore(fakeLiteral('a.dart', source));
+      filter.discards(fakeLiteral('a.dart', source));
 
   group('NoLetterFilter', () {
     const filter = NoLetterFilter();
@@ -111,6 +111,71 @@ void main() {
         expect(ignores(filter, source), isTrue, reason: source);
       }
     });
+  });
+
+  group('no filter can discard an interpolated template', () {
+    // The whole class of bug: an interpolated literal's `textValue` is only
+    // the fragments between the holes, so a rule about a whole string sees
+    // `' '` for `' $unit'` and matches things it never meant to.
+    const templates = [
+      r"' $unit'",
+      r"'$a – $b'",
+      r"'${w} × ${h}'",
+      r"'$monthDay, ${format.year(local)}'",
+      r"'$count $noun${count == 1 ? '' : 's'}'",
+    ];
+
+    for (final filters in <(String, List<LiteralFilter>)>[
+      ('--ignore-symbols', [const NoLetterFilter()]),
+      ('--min-length=2', [const MinLengthFilter(2)]),
+      ('--min-length=20', [const MinLengthFilter(20)]),
+      (r"--ignore-pattern='^\s*$'", [PatternFilter.parse(r'^\s*$')]),
+      (r"--ignore-pattern='^\P{L}*$'", [PatternFilter.parse(r'^\P{L}*$')]),
+      (r"--ignore-pattern='.*'", [PatternFilter.parse('.*')]),
+      ('--prose-only', [const ProseOnlyFilter()]),
+    ]) {
+      test(filters.$1, () {
+        final found = [
+          for (final source in templates) fakeLiteral('a.dart', source),
+        ];
+        expect(filters.$2.apply(found), hasLength(templates.length));
+      });
+    }
+  });
+
+  group('but a literal made only of holes has nothing to translate', () {
+    test('and is discarded', () {
+      final found = [
+        fakeLiteral('a.dart', r"'$error'"),
+        fakeLiteral('a.dart', r"'${entry.key}'"),
+      ];
+      expect(<LiteralFilter>[const NoLetterFilter()].apply(found), isEmpty);
+    });
+  });
+
+  test('--ignore-symbols is exactly --ignore-pattern=^\\P{L}*\$', () {
+    final found = [
+      for (final source in [
+        "''",
+        "' '",
+        "'/'",
+        "'0'",
+        "'2026-08-12'",
+        "'Cancel'",
+        r"'$error'",
+        r"' $unit'",
+        r"'$distance km'",
+      ])
+        fakeLiteral('a.dart', source),
+    ];
+    expect(
+      <LiteralFilter>[
+        const NoLetterFilter(),
+      ].apply(found).map((e) => e.sourceText),
+      <LiteralFilter>[
+        PatternFilter.parse(r'^\P{L}*$'),
+      ].apply(found).map((e) => e.sourceText),
+    );
   });
 
   group('apply', () {

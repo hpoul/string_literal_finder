@@ -15,44 +15,54 @@ sealed class LiteralFilter {
   const LiteralFilter();
 
   /// Whether [literal] should be discarded.
+  ///
+  /// This is the entry point, and it enforces [textValueIsWholeLiteral] before
+  /// consulting [shouldIgnore]. **No filter can discard an interpolated
+  /// literal that has text between the holes**, whether it is a built-in rule
+  /// or a `--ignore-pattern` someone wrote by hand.
+  bool discards(FoundStringLiteral literal) =>
+      textValueIsWholeLiteral(literal) && shouldIgnore(literal);
+
+  /// The filter's own rule, given a literal that it is safe to judge.
+  ///
+  /// Subclasses implement this; callers want [discards].
   bool shouldIgnore(FoundStringLiteral literal);
 
   /// Human readable description, reported in the run summary so it is obvious
   /// which filters were active when a number was produced.
   String get description;
+
+  /// Whether [FoundStringLiteral.textValue] describes the whole literal, and
+  /// can therefore safely be tested against a rule meant for a whole string.
+  ///
+  /// It does not when a literal is interpolated and has text between the
+  /// holes, because `textValue` then reports only the fragments: `' $unit'`
+  /// reduces to `' '` and `'$a – $b'` to `' – '`. A rule such as "is only
+  /// whitespace" or "has no letters" matches those, and they are templates
+  /// whose separator, ordering or pluralisation can differ by locale — exactly
+  /// the findings worth keeping.
+  ///
+  /// A literal made up of nothing but holes (`'$error'`) is fair game: there
+  /// is nothing between them to translate.
+  static bool textValueIsWholeLiteral(FoundStringLiteral literal) =>
+      !literal.isInterpolated || literal.textValue.isEmpty;
 }
 
 /// Discards literals with no word in them, which therefore have nothing to
-/// translate.
+/// translate: `''`, `' '`, `'/'`, `'-'`, `'0'`, `'\n'`, `' · '`,
+/// `'2026-08-12'`, and pure substitutions such as `'$error'`.
 ///
-/// Two shapes qualify:
-///
-///   * a plain literal containing no letter — `''`, `' '`, `'/'`, `'-'`,
-///     `'0'`, `'\n'`, `' · '`, `'2026-08-12'`;
-///   * an interpolation with no literal text at all — `'$error'`, `'$url'`,
-///     `'${entry.key}'` — which is pure substitution.
-///
-/// It removed 16% of findings on the measured corpus. This is the filter to
-/// reach for first.
-///
-/// **An interpolation with letterless text between the holes is deliberately
-/// kept**, even though it also has no word in it. `' $unit'`, `'$a – $b'`,
-/// `'${w} × ${h}'` and `'$count $noun${count == 1 ? '' : 's'}'` all look like
-/// punctuation by this measure, and all of them are templates whose separator,
-/// ordering or pluralisation can differ by locale. Those are among the most
-/// valuable things this tool finds, so they are not filtered.
+/// Exactly equivalent to `--ignore-pattern='^\P{L}*$'`; it exists only so the
+/// common case does not have to be spelled as a regular expression. Removed
+/// 16% of findings on the measured corpus.
 final class NoLetterFilter extends LiteralFilter {
   const NoLetterFilter();
 
   static final _letter = RegExp(r'\p{L}', unicode: true);
 
   @override
-  bool shouldIgnore(FoundStringLiteral literal) {
-    if (_letter.hasMatch(literal.textValue)) {
-      return false;
-    }
-    return !literal.isInterpolated || literal.textValue.isEmpty;
-  }
+  bool shouldIgnore(FoundStringLiteral literal) =>
+      !_letter.hasMatch(literal.textValue);
 
   @override
   String get description => 'containing no words';
@@ -83,10 +93,18 @@ final class MinLengthFilter extends LiteralFilter {
 /// The escape hatch for project specific noise — asset extensions, analytics
 /// event names, a naming convention for map keys:
 /// `--ignore-pattern='^\.[a-z0-9]+$'`.
+///
+/// Interpolated literals with text between the holes are never matched; see
+/// [LiteralFilter.textValueIsWholeLiteral]. Without that rule the obvious
+/// patterns are traps: `'^\s*$'` looks like "empty or whitespace" and also
+/// discards `' $unit'`.
 final class PatternFilter extends LiteralFilter {
   PatternFilter(this.pattern);
 
-  PatternFilter.parse(String source) : pattern = RegExp(source);
+  /// `unicode: true` is required for `\p{L}` and friends. Without it Dart
+  /// treats them as a literal `p`, so a pattern using them silently matches
+  /// nothing at all rather than failing.
+  PatternFilter.parse(String source) : pattern = RegExp(source, unicode: true);
 
   final RegExp pattern;
 
@@ -123,9 +141,10 @@ final class ProseOnlyFilter extends LiteralFilter {
 
 extension LiteralFilterList on List<LiteralFilter> {
   /// [found] minus everything any of these filters discards.
+  ///
   List<FoundStringLiteral> apply(List<FoundStringLiteral> found) => isEmpty
       ? found
       : found
-            .where((literal) => !any((filter) => filter.shouldIgnore(literal)))
+            .where((literal) => !any((filter) => filter.discards(literal)))
             .toList();
 }

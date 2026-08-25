@@ -43,7 +43,10 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
   5.4s on a 146-file Flutter `lib/` (16.0s in 1.5.0+1).
 * Opt-in noise filters, all off by default: `--ignore-symbols` (literals with
   no word in them, -16%), `--min-length`, `--ignore-pattern` and
-  `--prose-only`. See the README for measured trade-offs.
+  `--prose-only`. See the README for measured trade-offs. No filter, including
+  a hand-written `--ignore-pattern`, can discard an interpolated literal that
+  has text between the holes — `' $unit'` and
+  `'$count $noun${count == 1 ? '' : 's'}'` are safe from all of them.
 * `--no-analysis-options` to ignore `analysis_options.yaml` from the CLI.
 
 ### Changed

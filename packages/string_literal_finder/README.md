@@ -139,13 +139,31 @@ one.
 Start with `--ignore-symbols`. Measure the rest against your own code with
 `--format=json` before trusting them.
 
-`--ignore-symbols` deliberately **keeps** an interpolation whose literal text
-is letterless, such as `' $unit'`, `'$a – $b'`, `'${w} × ${h}'` or
-`'$count $noun${count == 1 ? '' : 's'}'`. They look like punctuation by any
-simple measure, but each is a template whose separator, ordering or
-pluralisation can differ by locale — which is among the most valuable things
-this tool finds. Only interpolations with *no* literal text at all (`'$error'`)
-are dropped.
+### One rule protects all of them
+
+No filter — including a `--ignore-pattern` you write yourself — can discard an
+interpolated literal that has text between the holes.
+
+That rule is not cosmetic. Filters match against a literal's *visible* text,
+and for an interpolation that is only the fragments: `' $unit'` reduces to
+`' '`, and `'$a – $b'` to `' – '`. So the most obvious, most conservative
+pattern anyone would reach for —
+
+```shell
+--ignore-pattern='^\s*$'   # "just empty or whitespace, surely that's safe"
+```
+
+— would otherwise throw away `' $unit'`, `'$monthDay, ${format.year(local)}'`
+and `'$count $noun${count == 1 ? '' : 's'}'`: a unit suffix, a date
+composition, and English pluralisation compiled into the source. Those are
+among the most valuable things this tool finds, so they are never filtered.
+
+A literal made of nothing but holes (`'$error'`) *is* dropped — there is no
+text between them to translate.
+
+One consequence worth knowing: `--ignore-symbols` is exactly equivalent to
+`--ignore-pattern='^\P{L}*$'`, and exists only so the common case does not
+have to be spelled as a regular expression.
 
 ## Integration with the IDE analyzer
 
