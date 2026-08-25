@@ -16,6 +16,7 @@ import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_gen/source_gen.dart';
 import 'package:string_literal_finder/src/analysis_options.dart';
+import 'package:string_literal_finder/src/sdk.dart';
 import 'package:string_literal_finder/src/utils.dart';
 import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
 
@@ -70,6 +71,7 @@ class StringLiteralFinder {
     required this.excludePaths,
     this.analysisOptions,
     this.cachePath,
+    this.sdkPath,
   });
 
   /// Base path of the library.
@@ -86,6 +88,14 @@ class StringLiteralFinder {
   /// Directory for the analyzer's linked summary cache. Reusing it across runs
   /// roughly halves the wall clock time; see `--cache-dir`.
   final String? cachePath;
+
+  /// Root of the Dart SDK to analyse against.
+  ///
+  /// Null means "work it out", which is right whenever the tool runs on the
+  /// Dart VM. It has to be given for a binary produced by `dart compile exe`,
+  /// because the analyzer derives the SDK from `Platform.resolvedExecutable`
+  /// and that is the binary itself; see [resolveSdkPath].
+  final String? sdkPath;
 
   final List<FoundStringLiteral> foundStringLiterals = [];
   final Set<String> filesSkipped = <String>{};
@@ -108,6 +118,7 @@ class StringLiteralFinder {
     final collection = AnalysisContextCollectionImpl(
       includedPaths: [basePath],
       byteStore: byteStore,
+      sdkPath: resolveSdkPath(sdkPath),
     );
     try {
       _logger.finer('Finding contexts.');

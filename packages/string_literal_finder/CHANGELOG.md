@@ -29,6 +29,8 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
 * The plugin reported literals nested inside an interpolation twice.
 * `export` URIs were reported as literals.
 * `--format=json` wrote log records to stdout, corrupting the report.
+* Piping to a consumer that stops reading (`... | head`) printed an unhandled
+  `Broken pipe` stack trace over its output.
 * `--prose-only` discarded phrases whose first word ended in punctuation,
   such as `'Hello, world'`, and its pattern backtracked quadratically -- 41
   seconds to reject a 200,000 character literal with no whitespace.
@@ -53,6 +55,9 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
   JSON was counts only.
 * `--cache-dir`: reuse the analyzer's linked summaries between runs. 12.6s to
   5.4s on a 146-file Flutter `lib/` (16.0s in 1.5.0+1).
+* `--dart-sdk`, and SDK auto-detection, so `dart compile exe` produces a
+  working binary. That removes JIT warm-up, which dominates once the analysis
+  is cached: the same run takes **1.8s**.
 * Opt-in noise filters, all off by default: `--ignore-symbols` (literals with
   no word in them, -16%), `--min-length`, `--ignore-pattern` and
   `--prose-only`. See the README for measured trade-offs. No filter, including

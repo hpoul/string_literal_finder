@@ -42,30 +42,57 @@ class LiteralStringRule extends AnalysisRule {
   @override
   LintCode get diagnosticCode => code;
 
-  final Map<String, AnalysisOptions> _analysisOptions = {};
+  /// Parsed options, keyed by the options file and the modification stamp they
+  /// were read at, so editing `exclude_globs` takes effect without restarting
+  /// the analyzer.
+  final Map<String, (int stamp, AnalysisOptions options)> _analysisOptions = {};
+
+  /// Directories already known to have no options file above them. Without
+  /// this a project with no `analysis_options.yaml` walks to the filesystem
+  /// root again for every literal.
+  final Set<String> _withoutOptions = {};
 
   AnalysisOptions? findAnalysisOptions(File? file) {
     if (file == null) {
       return null;
     }
-    var dir = file.parent;
-    while (!dir.isRoot) {
+    final searched = <String>[];
+    for (var dir = file.parent; ; dir = dir.parent) {
+      if (_withoutOptions.contains(dir.path)) {
+        break;
+      }
+      searched.add(dir.path);
       try {
         final optionsFile = dir.getFile('analysis_options.yaml');
         if (optionsFile.exists) {
-          return _analysisOptions[optionsFile.path] ??= () {
-            _logger.finer('parsing ${optionsFile.path}');
-            return AnalysisOptions.loadFromYaml(
-              dir.path,
-              optionsFile.readAsStringSync(),
-            );
-          }();
+          final stamp = optionsFile.modificationStamp;
+          final cached = _analysisOptions[optionsFile.path];
+          if (cached != null && cached.$1 == stamp) {
+            return cached.$2;
+          }
+          _logger.finer('parsing ${optionsFile.path}');
+          final options = AnalysisOptions.loadFromYaml(
+            dir.path,
+            optionsFile.readAsStringSync(),
+          );
+          _analysisOptions[optionsFile.path] = (stamp, options);
+          return options;
         }
-        dir = dir.parent;
-      } catch (e) {
+      } catch (e, stackTrace) {
+        // Failing here silently disables every exclude_glob, so say so.
+        _logger.warning(
+          'Unable to read analysis options near ${dir.path}',
+          e,
+          stackTrace,
+        );
+        break;
+      }
+      // Checked after reading, so an options file at the root is still found.
+      if (dir.isRoot) {
         break;
       }
     }
+    _withoutOptions.addAll(searched);
     return null;
   }
 

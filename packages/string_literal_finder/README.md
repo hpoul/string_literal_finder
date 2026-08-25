@@ -100,13 +100,26 @@ Diagnostics go to stderr, so stdout stays parseable.
 
 ### Speed
 
-Resolving Dart source is ~97% of a run. `--cache-dir` keeps the analyzer's
-linked summaries between runs. Measured best-of-three on an M-series Mac:
+Resolving Dart source is ~97% of a run. Two things make a large difference.
 
-| corpus | v1.5.0+1 | now | now, warm cache |
-| ------ | -------- | --- | --------------- |
-| Flutter app, 146 files in `lib/` | 16.0s | 12.6s | **5.4s** |
-| Flutter app, 117 files in `lib/` | 16.1s | 14.5s | **4.8s** |
+**`--cache-dir`** keeps the analyzer's linked summaries between runs.
+**Compiling to a binary** removes JIT warm-up, which dominates once the
+analysis itself is cached. Best-of-three on an M-series Mac, 146 files:
+
+| | v1.5.0+1 | now |
+| ------ | -------- | --- |
+| `dart pub global run`, no cache | 16.0s | 12.6s |
+| `dart pub global run`, warm cache | — | 5.4s |
+| `dart compile exe`, warm cache | — | **1.8s** |
+
+```shell
+dart compile exe bin/string_literal_finder.dart -o slf
+./slf --path=lib --cache-dir=.dart_tool/string_literal_finder
+```
+
+A compiled binary cannot work out where the SDK is — the analyzer derives that
+from the running executable — so it looks for `DART_SDK` and then a `dart` on
+`PATH`. Pass `--dart-sdk=<path>` if neither applies.
 
 The cache is 70–95 MB for a Flutter app and is safe to cache in CI:
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,6 +25,7 @@ const _argExcludePath = 'exclude-path';
 const _argExcludeSuffix = 'exclude-suffix';
 const _argAnalysisOptions = 'analysis-options';
 const _argCacheDir = 'cache-dir';
+const _argDartSdk = 'dart-sdk';
 const _argMetricsFile = 'metrics-output-file';
 const _argAnnotationFile = 'annotations-output-file';
 const _argAnnotationRoot = 'annotations-path-root';
@@ -68,6 +70,12 @@ ArgParser _buildParser() => ArgParser()
     help:
         'Read `string_literal_finder: exclude_globs:` from the '
         'analysis_options.yaml next to --path.',
+  )
+  ..addOption(
+    _argDartSdk,
+    help:
+        'Root of the Dart SDK to analyse against. Only needed for a binary '
+        'built with `dart compile exe`, which cannot work it out itself.',
   )
   ..addOption(
     _argCacheDir,
@@ -137,6 +145,26 @@ ArgParser _buildParser() => ArgParser()
   ..addFlag(_argHelp, abbr: 'h', negatable: false);
 
 Future<void> main(List<String> arguments) async {
+  // A consumer that stops reading -- `string_literal_finder ... | head` --
+  // closes stdout under us, and the sink reports that as an *asynchronous*
+  // error no try/catch here can see. Unguarded it prints twenty lines of
+  // stack trace over whatever the consumer was showing.
+  await runZonedGuarded(() => _main(arguments), (error, stackTrace) {
+    if (_isBrokenPipe(error)) {
+      exit(exitCode);
+    }
+    _logger.severe('Error during analysis.', error, stackTrace);
+    exit(_exitError);
+  });
+}
+
+bool _isBrokenPipe(Object error) =>
+    error is FileSystemException &&
+    // EPIPE on unix, ERROR_NO_DATA on Windows.
+    (const [32, 232].contains(error.osError?.errorCode) ||
+        error.message.contains('Broken pipe'));
+
+Future<void> _main(List<String> arguments) async {
   final parser = _buildParser();
   // Diagnostics belong on stderr so that `--format=json` keeps stdout
   // parseable; without `stderrLevel` every record is print()ed to stdout.
@@ -202,6 +230,7 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
         ? _loadAnalysisOptions(absolutePath)
         : null,
     cachePath: results.option(_argCacheDir)?.let(path.absolute),
+    sdkPath: results.option(_argDartSdk)?.let(path.absolute),
   );
   final filters = _buildFilters(results);
   // Parsed before the analysis runs: discovering a typo after several minutes
@@ -212,21 +241,55 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
   final allFound = await stringLiteralFinder.start();
   final foundStringLiterals = filters.apply(allFound);
 
+  final comparison = writeBaseline
+      ? null
+      : baselinePath?.let(
+          (file) =>
+              _readBaseline(file).compare(foundStringLiterals, absolutePath),
+        );
+  final reported = comparison?.newLiterals ?? foundStringLiterals;
+
+  final metrics = <String, Object?>{
+    'stringLiterals': reported.length,
+    'stringLiteralsFiles': reported.map((e) => e.filePath).toSet().length,
+    'filesAnalyzed': stringLiteralFinder.filesAnalyzed.length,
+    'filesSkipped': stringLiteralFinder.filesSkipped.length,
+    'filesWithoutLiterals':
+        stringLiteralFinder.filesAnalyzed.length -
+        allFound.map((e) => e.filePath).toSet().length,
+    // Files the syntactic pre-pass proved could not contain a finding, and
+    // which were therefore never resolved.
+    'filesNotResolved': stringLiteralFinder.filesSkippedBySyntacticPrePass,
+    if (filters.isNotEmpty) ...{
+      'literalsBeforeFiltering': allFound.length,
+      'filteredOut': allFound.length - foundStringLiterals.length,
+    },
+    if (comparison != null) ...{
+      'baselineLiterals': foundStringLiterals.length - reported.length,
+      'baselineObsolete': comparison.obsoleteCount,
+    },
+  };
+
+  Future<void> writeMetricsFile() async {
+    await results
+        .option(_argMetricsFile)
+        ?.let(
+          (metricsFile) =>
+              File(metricsFile).writeAsString(_encodeJson(metrics)),
+        );
+  }
+
   if (writeBaseline) {
     final baseline = Baseline.fromFound(foundStringLiterals, absolutePath);
     await File(baselinePath!).writeAsString(baseline.toJson());
-    final summary =
-        'Recorded ${baseline.totalCount} literals in '
-        '${baseline.literals.length} files to $baselinePath.';
     // stdout belongs to the report in json mode.
-    (json ? stderr : stdout).writeln(summary);
+    (json ? stderr : stdout).writeln(
+      'Recorded ${baseline.totalCount} literals in '
+      '${baseline.literals.length} files to $baselinePath.',
+    );
+    await writeMetricsFile();
     return _exitOk;
   }
-
-  final comparison = baselinePath?.let(
-    (file) => _readBaseline(file).compare(foundStringLiterals, absolutePath),
-  );
-  final reported = comparison?.newLiterals ?? foundStringLiterals;
 
   await results
       .option(_argAnnotationFile)
@@ -240,24 +303,6 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
 
   final failed = reported.length > (maxLiterals ?? 0);
 
-  final metrics = <String, Object?>{
-    'stringLiterals': reported.length,
-    'stringLiteralsFiles': reported.map((e) => e.filePath).toSet().length,
-    'filesAnalyzed': stringLiteralFinder.filesAnalyzed.length,
-    'filesSkipped': stringLiteralFinder.filesSkipped.length,
-    'filesWithoutLiterals':
-        stringLiteralFinder.filesAnalyzed.length -
-        allFound.map((e) => e.filePath).toSet().length,
-    if (filters.isNotEmpty) ...{
-      'literalsBeforeFiltering': allFound.length,
-      'filteredOut': allFound.length - foundStringLiterals.length,
-    },
-    if (comparison != null) ...{
-      'baselineLiterals': foundStringLiterals.length - reported.length,
-      'baselineObsolete': comparison.obsoleteCount,
-    },
-  };
-
   if (json) {
     _writeJsonReport(reported, metrics, absolutePath, failed: failed);
   } else {
@@ -270,11 +315,7 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
     );
   }
 
-  await results
-      .option(_argMetricsFile)
-      ?.let(
-        (metricsFile) => File(metricsFile).writeAsString(_encodeJson(metrics)),
-      );
+  await writeMetricsFile();
 
   return failed ? _exitLiteralsFound : _exitOk;
 }
