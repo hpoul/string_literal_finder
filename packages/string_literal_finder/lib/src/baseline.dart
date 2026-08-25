@@ -45,15 +45,27 @@ class Baseline {
         'Re-record it with --write-baseline.',
       );
     }
-    final literals = decoded[_keyLiterals] as Map<String, dynamic>? ?? {};
-    return Baseline({
-      for (final MapEntry(:key, :value) in literals.entries)
-        key: {
-          for (final MapEntry(key: literal, value: count)
-              in (value as Map<String, dynamic>).entries)
-            literal: count as int,
-        },
-    });
+    final literals = decoded[_keyLiterals];
+    if (literals is! Map<String, dynamic>) {
+      throw const FormatException('Baseline "literals" must be an object.');
+    }
+    try {
+      return Baseline({
+        for (final MapEntry(:key, :value) in literals.entries)
+          key: {
+            for (final MapEntry(key: literal, value: count)
+                in (value as Map<String, dynamic>).entries)
+              literal: count as int,
+          },
+      });
+    } on TypeError catch (e) {
+      // A bare TypeError here surfaces as an internal error with a stack
+      // trace, which tells nobody that their baseline file is corrupt.
+      throw FormatException(
+        'Baseline is malformed ($e). '
+        'Re-record it with --write-baseline.',
+      );
+    }
   }
 
   /// Builds a baseline from [found]. Paths are stored relative to [basePath] so

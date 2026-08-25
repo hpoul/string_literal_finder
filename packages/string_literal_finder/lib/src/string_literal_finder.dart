@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
@@ -202,6 +203,9 @@ class _MayContainLiteralVisitor extends RecursiveAstVisitor<void> {
   void visitImportDirective(ImportDirective node) {}
 
   @override
+  void visitExportDirective(ExportDirective node) {}
+
+  @override
   void visitPartDirective(PartDirective node) {}
 
   @override
@@ -317,7 +321,19 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   StringLiteralVisitor.context({
     required this.context,
     required this.foundStringLiteral,
+    this.descendIntoInterpolations = true,
   });
+
+  /// Whether to visit the expressions interpolated into a reported literal.
+  ///
+  /// True when driving the traversal directly, as the command line does: this
+  /// visitor stops at a reported literal, so `'${f('inner')}'` would otherwise
+  /// never reach `'inner'`.
+  ///
+  /// False under the analysis rule framework, which walks the whole unit itself
+  /// and dispatches every registered node type independently. Descending again
+  /// there would report every nested literal twice.
+  final bool descendIntoInterpolations;
 
   static const loggerChecker = TypeChecker.typeNamed(Logger);
   static const nonNlsChecker = TypeChecker.typeNamed(NonNlsArg);
@@ -408,8 +424,10 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     );
     // Descend only into interpolated expressions. Visiting all children would
     // re-report the operands of an `AdjacentStrings` as literals of their own.
-    for (final expression in _interpolatedExpressions(node)) {
-      expression.accept(this);
+    if (descendIntoInterpolations) {
+      for (final expression in _interpolatedExpressions(node)) {
+        expression.accept(this);
+      }
     }
     return null;
   }
@@ -429,8 +447,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     if (executableElement == null) {
       return false;
     }
-    final argPos = argumentList.arguments.indexOf(argument);
-    if (argPos == -1) {
+    if (!argumentList.arguments.contains(argument)) {
       return false;
     }
     final formalParameters = executableElement.formalParameters;
@@ -441,10 +458,23 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           .where((element) => element.isNamed && element.name == name)
           .firstOrNull;
     } else {
-      // Positional arguments are always listed before named ones, so the
-      // argument index doubles as the parameter index.
-      param = argPos < formalParameters.length
-          ? formalParameters[argPos]
+      // Since Dart 2.17 a named argument may appear *before* a positional one
+      // at the call site, so the argument's index in the list is not its
+      // parameter index. Count only the positional arguments ahead of it.
+      var positionalIndex = 0;
+      for (final other in argumentList.arguments) {
+        if (identical(other, argument)) {
+          break;
+        }
+        if (other is! NamedArgument) {
+          positionalIndex++;
+        }
+      }
+      final positionals = formalParameters
+          .where((e) => e.isPositional)
+          .toList();
+      param = positionalIndex < positionals.length
+          ? positionals[positionalIndex]
           : null;
     }
     if (param == null) {
@@ -464,9 +494,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
       nodeChildChild = nodeChild, nodeChild = node, node = node.parent
     ) {
       try {
-        if (node is ImportDirective ||
-            node is PartDirective ||
-            node is PartOfDirective) {
+        if (node is UriBasedDirective || node is PartOfDirective) {
           return true;
         }
         if (node is Annotation) {
@@ -586,14 +614,19 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         );
       }
     }
-    // see if we can find a line end comment.
+    // See if we can find a line end comment. Comments are attached to the
+    // token that follows them, so this walks to the first token on a later
+    // line and looks at what precedes it.
     final lineNumber = lineInfo!.getLocation(origNode.end).lineNumber;
     var nextToken = origNode.endToken.next;
     while (nextToken != null &&
+        // The EOF token's `next` is the EOF token itself, so a literal on the
+        // last line of a file with no trailing newline would loop forever.
+        nextToken.type != TokenType.EOF &&
         lineInfo.getLocation(nextToken.offset).lineNumber == lineNumber) {
       nextToken = nextToken.next;
     }
-    final comment = nextToken!.precedingComments;
+    final comment = nextToken?.precedingComments;
     if (comment != null &&
         lineInfo.getLocation(comment.offset).lineNumber == lineNumber) {
       if (comment.value().contains('NON-NLS')) {

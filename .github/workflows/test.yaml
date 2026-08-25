@@ -10,6 +10,12 @@ jobs:
         dart_channel: ['stable']
         # Analysis only covers the package you stand in, so each one is
         # analyzed separately rather than once from the repository root.
+        # `package` has to be a real matrix dimension: `include` entries whose
+        # keys are absent from the base matrix are merged into every existing
+        # combination, so listing them there would collapse to a single job.
+        package:
+          - string_literal_finder
+          - string_literal_finder_annotations
         include:
           # `example/` is deliberately full of string literals, so the plugin
           # reports them and `--fatal-infos` over the whole package would fail.

@@ -7,6 +7,7 @@ import 'package:analyzer/error/error.dart';
 import 'package:analyzer/file_system/file_system.dart';
 import 'package:logging/logging.dart';
 import 'package:string_literal_finder/src/analysis_options.dart';
+import 'package:string_literal_finder/src/fixes.dart';
 import 'package:string_literal_finder/src/string_literal_finder.dart';
 
 export 'package:string_literal_finder/src/analysis_options.dart'
@@ -23,6 +24,8 @@ class LiteralStringFinderPlugin extends Plugin {
   @override
   void register(PluginRegistry registry) {
     registry.registerWarningRule(LiteralStringRule());
+    registry.registerFixForRule(LiteralStringRule.code, WrapWithNonNls.new);
+    registry.registerFixForRule(LiteralStringRule.code, AddNonNlsComment.new);
   }
 }
 
@@ -76,6 +79,9 @@ class LiteralStringRule extends AnalysisRule {
     // parsed by hand in `findAnalysisOptions` below.
     // See https://github.com/dart-lang/sdk/issues/63098
     final visitor = StringLiteralVisitor.context(
+      // The rule framework walks the unit itself and dispatches every
+      // registered node type, so the visitor must not descend as well.
+      descendIntoInterpolations: false,
       context: () => StringLiteralContext(
         filePath: context.currentUnit?.file.path ?? '',
         unit: context.currentUnit?.unit,

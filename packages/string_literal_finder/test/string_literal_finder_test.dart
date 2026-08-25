@@ -106,6 +106,27 @@ line''';
       """);
       expect(found.map((e) => e.textValue), ['raw', 'multi\nline']);
     });
+    test('directive URIs are not literals', () async {
+      // `export` was missing from the ignore list even though the README
+      // promised directive URIs were ignored.
+      final found = await _findStrings('''
+      import 'dart:math';
+      export 'dart:convert';
+      final a = 'found';
+      ''');
+      expect(found.map((e) => e.stringValue), ['found']);
+    });
+    test('a literal on the last line without a trailing newline', () async {
+      // The EOF token's `next` is the EOF token itself, so scanning forward
+      // for a line-end comment used to spin forever -- a hard hang in the CLI
+      // and in the analyzer plugin isolate.
+      final found = await _findStrings("final a = 'x';");
+      expect(found.map((e) => e.sourceText), ["'x'"]);
+    });
+    test('NON-NLS on the last line without a trailing newline', () async {
+      final found = await _findStrings("final a = 'x'; // NON-NLS");
+      expect(found, isEmpty);
+    });
     test('an empty string is still reported by default', () async {
       // Filtering it out is opt-in; the finder itself does not decide.
       final found = await _findStrings('''
@@ -224,6 +245,32 @@ line''';
       ''');
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
+    });
+    test('a named argument written before a positional one', () async {
+      // Since Dart 2.17 the call site may order these freely, so an
+      // argument's index in the list is not its parameter index.
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      void func(String label, {@NonNls String? key}) {}
+
+      void main() {
+        func(key: 'ignored', 'found');
+      }
+      ''');
+      expect(found.map((e) => e.stringValue), ['found']);
+    });
+    test('a positional @NonNls after a named argument', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      void func(@NonNls String key, {String? label}) {}
+
+      void main() {
+        func(label: 'found', 'ignored');
+      }
+      ''');
+      expect(found.map((e) => e.stringValue), ['found']);
     });
     test('named arguments of a constructor invocation', () async {
       final found = await _findStrings('''

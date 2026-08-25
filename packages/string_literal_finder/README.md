@@ -73,6 +73,10 @@ that already had one is still reported.
 `--max-literals=<n>` is the cruder alternative if you would rather track a
 single number than a file.
 
+Filters are applied **before** the baseline is recorded, so use the same filter
+flags when recording and when checking. Adding a filter later is harmless;
+removing one makes previously filtered literals look new.
+
 ### Machine-readable output
 
 `--format=json` writes every finding to stdout, for CI annotations:

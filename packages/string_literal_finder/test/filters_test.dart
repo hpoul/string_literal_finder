@@ -95,6 +95,18 @@ void main() {
       expect(ignores(filter, r"'Back to your tours'"), isFalse);
     });
 
+    test('keeps a phrase whose first word ends in punctuation', () {
+      // The letter need not touch the space.
+      for (final source in [
+        "'Hello, world'",
+        "'Yes, delete'",
+        "'No, thanks'",
+        "'Done!  Next'",
+      ]) {
+        expect(ignores(filter, source), isFalse, reason: source);
+      }
+    });
+
     test('discards single words, including real labels', () {
       // Documented false negatives -- this is why it is not a gate.
       for (final source in ["'Cancel'", "'Back'", "'Hidden'"]) {

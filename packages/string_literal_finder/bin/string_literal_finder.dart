@@ -138,7 +138,9 @@ ArgParser _buildParser() => ArgParser()
 
 Future<void> main(List<String> arguments) async {
   final parser = _buildParser();
-  PrintAppender.setupLogging(level: Level.SEVERE);
+  // Diagnostics belong on stderr so that `--format=json` keeps stdout
+  // parseable; without `stderrLevel` every record is print()ed to stdout.
+  PrintAppender.setupLogging(level: Level.SEVERE, stderrLevel: Level.SEVERE);
   try {
     exitCode = await _run(parser, parser.parse(arguments));
   } on UsageException catch (e) {
@@ -160,6 +162,7 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
   }
   final json = results.option(_argFormat) == _formatJson;
   PrintAppender.setupLogging(
+    stderrLevel: Level.SEVERE,
     level: switch (results) {
       // In json mode stdout carries the report, so keep everything else off
       // unless it was asked for explicitly.
@@ -228,7 +231,9 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
         ),
       );
 
-  final maxLiterals = results.option(_argMaxLiterals)?.let(int.parse);
+  final maxLiterals = results
+      .option(_argMaxLiterals)
+      ?.let((e) => _nonNegativeInt(e, _argMaxLiterals));
   final failed = reported.length > (maxLiterals ?? 0);
 
   final metrics = <String, Object?>{
@@ -270,10 +275,22 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
   return failed ? _exitLiteralsFound : _exitOk;
 }
 
+/// Parses [value], reporting the flag it came from rather than leaving
+/// `int.parse` to complain about a "radix-10 number" nobody asked for.
+int _nonNegativeInt(String value, String flag) {
+  final parsed = int.tryParse(value);
+  if (parsed == null || parsed < 0) {
+    throw FormatException(
+      '--$flag expects a non-negative integer, got "$value".',
+    );
+  }
+  return parsed;
+}
+
 List<LiteralFilter> _buildFilters(ArgResults results) => [
   ...?results
       .option(_argMinLength)
-      ?.let((e) => [MinLengthFilter(int.parse(e))]),
+      ?.let((e) => [MinLengthFilter(_nonNegativeInt(e, _argMinLength))]),
   ...results.multiOption(_argIgnorePattern).map(PatternFilter.parse),
   if (results.flag(_argIgnoreSymbols)) const NoLetterFilter(),
   if (results.flag(_argProseOnly)) const ProseOnlyFilter(),

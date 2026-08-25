@@ -128,8 +128,12 @@ final class PatternFilter extends LiteralFilter {
 final class ProseOnlyFilter extends LiteralFilter {
   const ProseOnlyFilter();
 
-  /// Two letters separated by a space, i.e. at least two words.
-  static final _prose = RegExp(r'\p{L}[ \t]+\p{L}', unicode: true);
+  /// Two letter-bearing words separated by whitespace.
+  ///
+  /// The letter need not be adjacent to the gap: `'Hello, world'` and
+  /// `'Yes, delete'` are phrases, and requiring `\p{L}` immediately before the
+  /// space would discard them.
+  static final _prose = RegExp(r'\p{L}\S*\s+\S*\p{L}', unicode: true);
 
   @override
   bool shouldIgnore(FoundStringLiteral literal) =>
@@ -141,7 +145,6 @@ final class ProseOnlyFilter extends LiteralFilter {
 
 extension LiteralFilterList on List<LiteralFilter> {
   /// [found] minus everything any of these filters discards.
-  ///
   List<FoundStringLiteral> apply(List<FoundStringLiteral> found) => isEmpty
       ? found
       : found
