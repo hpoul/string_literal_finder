@@ -353,16 +353,16 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
   static const ignoredConstructorCalls = [
     TypeChecker.typeNamed(Uri),
     TypeChecker.typeNamed(RegExp),
-    TypeChecker.fromUrl(
-      'package:flutter/src/painting/image_resolution.dart#AssetImage',
-    ),
-    TypeChecker.fromUrl(
-      'package:flutter/src/widgets/navigator.dart#RouteSettings',
-    ),
-    TypeChecker.fromUrl('package:flutter/src/foundation/key.dart#ValueKey'),
-    TypeChecker.fromUrl(
-      'package:flutter/src/services/platform_channel.dart#MethodChannel',
-    ),
+    // Named by type + package, not by URI. `TypeChecker.fromUrl` matches on
+    // the *declaring* library, so it needs Flutter's private implementation
+    // paths -- and those move: `AssetImage` has already been relocated once,
+    // and there are ~120 renames under `packages/flutter/lib/src/` in
+    // Flutter's history. Each move would have silently stopped the exemption
+    // matching, surfacing as a wave of unexplained new findings.
+    TypeChecker.typeNamedLiterally('AssetImage', inPackage: 'flutter'),
+    TypeChecker.typeNamedLiterally('RouteSettings', inPackage: 'flutter'),
+    TypeChecker.typeNamedLiterally('ValueKey', inPackage: 'flutter'),
+    TypeChecker.typeNamedLiterally('MethodChannel', inPackage: 'flutter'),
     TypeChecker.typeNamed(StateError),
     loggerChecker,
     exceptionChecker,
@@ -564,11 +564,17 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
               )) {
             return true;
           }
-          for (final ignoredConstructorCall in ignoredConstructorCalls) {
-            if (ignoredConstructorCall.isAssignableFrom(
-              node.staticType!.element!,
-            )) {
-              return true;
+          // The type does not always resolve -- a project whose generated
+          // files are missing has plenty that do not. Force-unwrapping threw
+          // once per such literal, which aborted the remaining checks for this
+          // ancestor and logged a stack trace: 191 of them on one real Flutter
+          // app. An unresolvable type simply is not one of the ignored ones.
+          final createdType = node.staticType?.element;
+          if (createdType != null) {
+            for (final ignoredConstructorCall in ignoredConstructorCalls) {
+              if (ignoredConstructorCall.isAssignableFrom(createdType)) {
+                return true;
+              }
             }
           }
         }
@@ -616,6 +622,11 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             }
           }
         }
+      } on UnresolvedAnnotationException catch (e) {
+        // Says the analysed project has an annotation that does not resolve --
+        // typically generated files that have not been built. That is not a
+        // fault of this tool and not worth a stack trace per literal.
+        _logger.fine(() => 'Unresolved annotation near $origNode: $e');
       } catch (e, stackTrace) {
         final loc = lineInfo!.getLocation(origNode.offset);
         _logger.severe(

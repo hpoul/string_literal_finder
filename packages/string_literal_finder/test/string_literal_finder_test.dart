@@ -106,6 +106,16 @@ line''';
       """);
       expect(found.map((e) => e.textValue), ['raw', 'multi\nline']);
     });
+    test('an unresolvable constructor does not throw', () async {
+      // A project whose generated files are missing has plenty of types that
+      // do not resolve. Force-unwrapping the type threw once per such literal
+      // -- 191 times on one real Flutter app -- which aborted the remaining
+      // checks for that node and logged a stack trace each time.
+      final found = await _findStrings('''
+      final a = NoSuchType('found');
+      ''');
+      expect(found.map((e) => e.stringValue), ['found']);
+    });
     test('directive URIs are not literals', () async {
       // `export` was missing from the ignore list even though the README
       // promised directive URIs were ignored.
