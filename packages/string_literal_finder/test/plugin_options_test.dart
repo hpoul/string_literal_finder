@@ -103,6 +103,33 @@ string_literal_finder:
     });
   });
 
+  test('a file that breaks again is complained about again', () {
+    // The once-per-file guard must not outlive the repair, or the second
+    // breakage goes unreported.
+    writeOptions('string_literal_finder: [oh: no');
+    writeSource();
+    final file = resources.getFile(path(['lib', 'a.dart']));
+
+    final warnings = <String>[];
+    final subscription = Logger.root.onRecord
+        .where((record) => record.level >= Level.WARNING)
+        .listen((record) => warnings.add(record.message));
+    addTearDown(subscription.cancel);
+
+    expect(rule.findAnalysisOptions(file), isNull);
+    resources.modifyFile(path(['analysis_options.yaml']), validOptions);
+    expect(rule.findAnalysisOptions(file), isNotNull);
+    resources.modifyFile(
+      path(['analysis_options.yaml']),
+      'string_literal_finder: [broken again',
+    );
+    expect(rule.findAnalysisOptions(file), isNull);
+
+    return Future<void>.delayed(Duration.zero, () {
+      expect(warnings, hasLength(2));
+    });
+  });
+
   test('an options file created later is picked up once the cache expires', () {
     // The negative cache exists to collapse thousands of directory walks into
     // one, not to decide for the lifetime of the analyzer that a project will

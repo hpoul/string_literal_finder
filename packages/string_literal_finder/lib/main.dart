@@ -95,6 +95,9 @@ class LiteralStringRule extends AnalysisRule {
             optionsFile.readAsStringSync(),
           );
           _analysisOptions[optionsFile.path] = (stamp, options);
+          // Reading it worked, so a later break is news again rather than a
+          // repeat of a complaint already made.
+          _warnedAbout.remove(dir.path);
           return options;
         }
       } catch (e, stackTrace) {
