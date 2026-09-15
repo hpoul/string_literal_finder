@@ -548,16 +548,19 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         if (node is IndexExpression) {
           final target = node.realTarget;
           if (target is SimpleIdentifier) {
-            try {
-              if (_hasNonNls(target.element!)) {
-                return true;
-              }
-            } catch (e, stackTrace) {
-              _logger.warning(
-                'Unable to check annotation for $origNode at ${context().filePath}',
-                e,
-                stackTrace,
-              );
+            // The target does not always resolve, and force-unwrapping it
+            // logged a warning with a stack trace per literal. An unresolved
+            // target is simply not one that carries `@NonNls`.
+            final element = target.element;
+            if (element != null && _hasNonNls(element)) {
+              return true;
+            }
+            // A top-level variable or field is read through its synthetic
+            // getter, whose metadata is empty: the annotation sits on the
+            // variable. Only a local variable resolves to itself.
+            if (element is PropertyAccessorElement &&
+                _hasNonNls(element.variable)) {
+              return true;
             }
           }
         }

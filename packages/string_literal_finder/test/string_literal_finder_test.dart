@@ -134,6 +134,46 @@ line''';
       await Future<void>.delayed(Duration.zero);
       expect(severe, isEmpty);
     });
+    test('an unresolvable index target does not warn', () async {
+      // `target.element!` threw for an index expression whose target does not
+      // resolve, and an inner catch logged a warning with a stack trace per
+      // literal. An unresolved target is simply not one carrying `@NonNls`.
+      final warnings = <String>[];
+      final subscription = Logger.root.onRecord
+          .where((record) => record.level >= Level.WARNING)
+          .listen((record) => warnings.add(record.message));
+      addTearDown(subscription.cancel);
+
+      final found = await _findStrings('''
+      final a = noSuchMap['found'];
+      ''');
+      expect(found.map((e) => e.stringValue), ['found']);
+      await Future<void>.delayed(Duration.zero);
+      expect(warnings, isEmpty);
+    });
+    test('@NonNls on the target of an index expression', () async {
+      // A top-level variable or field is read through its synthetic getter,
+      // whose metadata is empty, so checking the referenced element alone
+      // only ever worked for a local variable.
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      @NonNls
+      final topMap = <String, String>{};
+      class C {
+        @NonNls
+        final fieldMap = <String, String>{};
+        void m() {
+          @NonNls
+          final localMap = <String, String>{};
+          final a = topMap['ignored'];
+          final b = fieldMap['ignored'];
+          final c = localMap['ignored'];
+        }
+      }
+      ''');
+      expect(found, isEmpty);
+    });
     test('directive URIs are not literals', () async {
       // `export` was missing from the ignore list even though the README
       // promised directive URIs were ignored.
