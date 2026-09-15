@@ -109,12 +109,30 @@ line''';
     test('an unresolvable constructor does not throw', () async {
       // A project whose generated files are missing has plenty of types that
       // do not resolve. Force-unwrapping the type threw once per such literal
-      // -- 191 times on one real Flutter app -- which aborted the remaining
-      // checks for that node and logged a stack trace each time.
+      // -- 191 times on one real Flutter app.
+      //
+      // `new`/`const` matter: without them the parser produces a
+      // `MethodInvocation`, and only resolution rewrites a call to an
+      // `InstanceCreationExpression` -- which it cannot do for a name that
+      // does not resolve. So a bare `NoSuchType('x')` never reaches the branch
+      // this covers.
+      //
+      // The literal is reported either way, so asserting on findings alone
+      // cannot tell the fix from the bug; what changed is that nothing is
+      // logged at SEVERE any more.
+      final severe = <String>[];
+      final subscription = Logger.root.onRecord
+          .where((record) => record.level >= Level.SEVERE)
+          .listen((record) => severe.add(record.message));
+      addTearDown(subscription.cancel);
+
       final found = await _findStrings('''
-      final a = NoSuchType('found');
+      final a = new NoSuchType('found');
+      final b = const NoSuchOtherType('alsoFound');
       ''');
-      expect(found.map((e) => e.stringValue), ['found']);
+      expect(found.map((e) => e.stringValue), ['found', 'alsoFound']);
+      await Future<void>.delayed(Duration.zero);
+      expect(severe, isEmpty);
     });
     test('directive URIs are not literals', () async {
       // `export` was missing from the ignore list even though the README
@@ -242,6 +260,34 @@ line''';
       ''');
       expect(found, hasLength(1));
       expect(found.first.stringValue, 'found');
+    });
+    test('@NonNls after an annotation that does not resolve', () async {
+      // source_gen walks annotations in order and, by default, throws at the
+      // first whose constant is null -- so `@NonNls` sitting *after* an
+      // unresolved annotation was never reached and everything below it was
+      // reported. Order-dependent: swapping the two used to suppress fine.
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      @SomeGeneratedThing()
+      @NonNls
+      String keys() {
+        return 'ignored';
+      }
+      ''');
+      expect(found, isEmpty);
+    });
+    test('@NonNls before an annotation that does not resolve', () async {
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      @NonNls
+      @SomeGeneratedThing()
+      String keys() {
+        return 'ignored';
+      }
+      ''');
+      expect(found, isEmpty);
     });
     test('named arguments of a method invocation', () async {
       final found = await _findStrings('''

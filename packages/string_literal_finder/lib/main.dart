@@ -100,6 +100,11 @@ class LiteralStringRule extends AnalysisRule {
           _warnedAbout.remove(dir.path);
           return options;
         }
+        // No file here. A complaint about one that has since been deleted is
+        // stale too, and keeping it would silence the next breakage of a
+        // recreated one. Deliberately not `continue`: the loop's exit test is
+        // at the bottom, and skipping it spins forever at the filesystem root.
+        _warnedAbout.remove(dir.path);
       } catch (e, stackTrace) {
         // Failing here silently disables every exclude_glob, so say so -- but
         // only once per file, since this runs for every reported literal.

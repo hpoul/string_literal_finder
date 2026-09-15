@@ -130,6 +130,34 @@ string_literal_finder:
     });
   });
 
+  test('a deleted then recreated broken file is complained about again', () {
+    // The stale-complaint guard has to clear on deletion too, not only on a
+    // successful parse, or a file that vanishes and comes back broken is
+    // silently un-reported.
+    writeOptions('string_literal_finder: [oh: no');
+    writeSource();
+    final file = resources.getFile(path(['lib', 'a.dart']));
+
+    final warnings = <String>[];
+    final subscription = Logger.root.onRecord
+        .where((record) => record.level >= Level.WARNING)
+        .listen((record) => warnings.add(record.message));
+    addTearDown(subscription.cancel);
+
+    expect(rule.findAnalysisOptions(file), isNull);
+    resources.deleteFile(path(['analysis_options.yaml']));
+    // Past the negative-cache TTL, so the walk actually runs again.
+    clock = clock.add(const Duration(seconds: 11));
+    expect(rule.findAnalysisOptions(file), isNull);
+    writeOptions('string_literal_finder: [broken again');
+    clock = clock.add(const Duration(seconds: 11));
+    expect(rule.findAnalysisOptions(file), isNull);
+
+    return Future<void>.delayed(Duration.zero, () {
+      expect(warnings, hasLength(2));
+    });
+  });
+
   test('an options file created later is picked up once the cache expires', () {
     // The negative cache exists to collapse thousands of directory walks into
     // one, not to decide for the lifetime of the analyzer that a project will

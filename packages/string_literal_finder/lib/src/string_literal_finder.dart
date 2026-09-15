@@ -491,8 +491,26 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     if (param == null) {
       return false;
     }
-    return nonNlsChecker.hasAnnotationOf(param);
+    return _hasNonNls(param);
   }
+
+  /// Whether [element] carries `@NonNls` / `@NonNlsArg()`.
+  ///
+  /// `throwOnUnresolved: false` is the whole point. source_gen walks an
+  /// element's annotations in order and, by default, throws at the *first* one
+  /// whose constant is null — before it has looked at any later annotation. So
+  /// an unresolved annotation sitting above `@NonNls`:
+  ///
+  /// ```dart
+  /// @SomeGeneratedThing @NonNls
+  /// void logKeys() { ... }
+  /// ```
+  ///
+  /// meant the `@NonNls` was never reached and every literal below it was
+  /// reported. Order-dependent, too: swapping the two annotations suppressed
+  /// correctly. Asking for `null` instead of a throw lets the walk continue.
+  static bool _hasNonNls(Element element) =>
+      nonNlsChecker.hasAnnotationOf(element, throwOnUnresolved: false);
 
   bool _shouldIgnore(AstNode origNode) {
     late final lineInfo = context().lineInfo;
@@ -513,7 +531,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           return true;
         }
         if (node is ClassDeclaration) {
-          if (nonNlsChecker.hasAnnotationOf(node.declaredFragment!.element)) {
+          if (_hasNonNls(node.declaredFragment!.element)) {
             if (nodeChild is FieldDeclaration) {
               if (nodeChild.isStatic) {
                 return true;
@@ -531,7 +549,7 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           final target = node.realTarget;
           if (target is SimpleIdentifier) {
             try {
-              if (nonNlsChecker.hasAnnotationOf(target.element!)) {
+              if (_hasNonNls(target.element!)) {
                 return true;
               }
             } catch (e, stackTrace) {
@@ -580,13 +598,13 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is VariableDeclaration) {
           final element = node.declaredFragment?.element;
-          if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
+          if (element != null && _hasNonNls(element)) {
             return true;
           }
         }
         if (node is FormalParameter) {
           final element = node.declaredFragment?.element;
-          if (element != null && nonNlsChecker.hasAnnotationOf(element)) {
+          if (element != null && _hasNonNls(element)) {
             return true;
           }
         }
@@ -617,16 +635,11 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
         }
         if (node is FunctionDeclaration || node is MethodDeclaration) {
           if (node is Declaration) {
-            if (nonNlsChecker.hasAnnotationOf(node.declaredFragment!.element)) {
+            if (_hasNonNls(node.declaredFragment!.element)) {
               return true;
             }
           }
         }
-      } on UnresolvedAnnotationException catch (e) {
-        // Says the analysed project has an annotation that does not resolve --
-        // typically generated files that have not been built. That is not a
-        // fault of this tool and not worth a stack trace per literal.
-        _logger.fine(() => 'Unresolved annotation near $origNode: $e');
       } catch (e, stackTrace) {
         final loc = lineInfo!.getLocation(origNode.offset);
         _logger.severe(
