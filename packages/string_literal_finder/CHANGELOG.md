@@ -19,9 +19,9 @@ exit 1 with "literals found").
 * `--cache-dir` — reuse the analyzer's summaries between runs: 16.0s → 5.4s.
 * `--dart-sdk` plus auto-detection, so `dart compile exe` works: **1.8s**.
 * Quick fixes in the IDE — wrap with `nonNls()`, or add `// NON-NLS`.
-* Opt-in noise filters, all off by default: `--ignore-symbols` (−16%),
-  `--min-length`, `--ignore-pattern`, `--prose-only` (−67%, but drops real
-  labels). See the README for the trade-offs.
+* Opt-in noise filters, all off by default: `--ignore-symbols`,
+  `--min-length`, `--ignore-pattern`, `--prose-only` (aggressive, and
+  drops real labels). See the README for the trade-offs.
 * `--max-literals`, `--no-analysis-options`.
 
 ### Fixed

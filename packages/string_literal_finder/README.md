@@ -100,28 +100,27 @@ Diagnostics go to stderr, so stdout stays parseable.
 
 ### Speed
 
-Resolving Dart source is ~97% of a run. Two things make a large difference.
+Resolving Dart source dominates a run — the analysis itself is a rounding
+error next to it. Two things help.
 
-**`--cache-dir`** keeps the analyzer's linked summaries between runs.
-**Compiling to a binary** removes JIT warm-up, which dominates once the
-analysis itself is cached. Best-of-three on an M-series Mac, 146 files:
-
-| | v1.5.0+1 | now |
-| ------ | -------- | --- |
-| `dart pub global run`, no cache | 16.0s | 12.6s |
-| `dart pub global run`, warm cache | — | 5.4s |
-| `dart compile exe`, warm cache | — | **1.8s** |
+**`--cache-dir`** keeps the analyzer's linked summaries between runs, which
+roughly halves the time. **Compiling to a binary** removes JIT warm-up, which
+dominates once the analysis is cached, and is worth about as much again:
 
 ```shell
 dart compile exe bin/string_literal_finder.dart -o slf
 ./slf --path=lib --cache-dir=.dart_tool/string_literal_finder
 ```
 
+On a mid-sized Flutter app that took a run from roughly fifteen seconds to
+under two. Your mileage will differ; measure your own.
+
 A compiled binary cannot work out where the SDK is — the analyzer derives that
 from the running executable — so it looks for `DART_SDK` and then a `dart` on
 `PATH`. Pass `--dart-sdk=<path>` if neither applies.
 
-The cache is 70–95 MB for a Flutter app and is safe to cache in CI:
+The cache runs to a hundred megabytes or so for a Flutter app, and is safe to
+cache in CI:
 
 ```yaml
 - uses: actions/cache@v4
@@ -136,9 +135,9 @@ The cache is 70–95 MB for a Flutter app and is safe to cache in CI:
 ## Reducing noise
 
 Out of the box the tool reports *every* literal it cannot prove is
-non-translatable. On a real Flutter application that is roughly eight findings
-for every genuinely user-visible string; the rest are map keys, asset
-extensions, `switch` cases and punctuation.
+non-translatable. Expect most findings not to be user-visible copy — map keys,
+asset extensions, `switch` cases and punctuation usually outnumber it several
+times over.
 
 The best fix is to mark them at the source, with the suppressions below — that
 is precise, and it documents intent. Where that is too much work up front,
@@ -146,15 +145,17 @@ these filters trade recall for signal. **They are all off by default**, because
 a tool that silently hides a real untranslated string is worse than a noisy
 one.
 
-| flag | effect on a real 2724-finding corpus | risk |
-| ---- | ------------------------------------ | ---- |
-| `--ignore-symbols` | −16% | low: drops literals with no word in them (`''`, `'/'`, `'0'`, `'2026-08-12'`) and pure substitutions (`'$error'`). Keeps `' $unit'` and `'$a – $b'` — see below |
-| `--min-length=<n>` | −20% at `n=2` | blunter version of the same idea; also drops `'OK'`, `'No'`, `'de'` |
+| flag | cuts | risk |
+| ---- | ---- | ---- |
+| `--ignore-symbols` | a modest slice | low: drops literals with no word in them (`''`, `'/'`, `'0'`, `'2026-08-12'`) and pure substitutions (`'$error'`). Keeps `' $unit'` and `'$a – $b'` — see below |
+| `--min-length=<n>` | about the same at `n=2` | blunter version of the same idea; also drops `'OK'`, `'No'`, `'de'` |
 | `--ignore-pattern=<regex>` | depends | yours to choose; repeatable |
-| `--prose-only` | −67% | **high** — also drops `'Cancel'`, `'Back'`, `'Hidden'`. Use it to triage the biggest wins, not as a gate |
+| `--prose-only` | most of them | **high** — also drops `'Cancel'`, `'Back'`, `'Hidden'`. Use it to triage the biggest wins, not as a gate |
 
-Start with `--ignore-symbols`. Measure the rest against your own code with
-`--format=json` before trusting them.
+Start with `--ignore-symbols`; it is the only one that has never been observed
+to discard a translatable string. Measure the rest against your own code with
+`--format=json` before trusting them — the proportions vary a lot between code
+bases, so a number from someone else's project would not tell you much.
 
 ### One rule protects all of them
 

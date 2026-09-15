@@ -8,9 +8,9 @@ import 'package:string_literal_finder/src/string_literal_finder.dart';
 /// noisy one — so the choice of how much to hide belongs to the project, not to
 /// the tool.
 ///
-/// The percentages in the subclass documentation were measured over a real
-/// Flutter application (2724 findings, 1357 of them under `lib/ui`), not
-/// invented. Reproduce them on your own code with `--format=json`.
+/// The proportions described below were observed on a real Flutter
+/// application rather than invented, but they vary a lot between code bases.
+/// Measure your own with `--format=json` before trusting any of them.
 sealed class LiteralFilter {
   const LiteralFilter();
 
@@ -54,7 +54,7 @@ sealed class LiteralFilter {
 ///
 /// Exactly equivalent to `--ignore-pattern='^\P{L}*$'`; it exists only so the
 /// common case does not have to be spelled as a regular expression. Removed
-/// 16% of findings on the measured corpus.
+/// a useful slice of the findings on the corpus it was measured on.
 final class NoLetterFilter extends LiteralFilter {
   const NoLetterFilter();
 
@@ -71,8 +71,8 @@ final class NoLetterFilter extends LiteralFilter {
 /// Discards literals whose visible text is shorter than [minLength].
 ///
 /// Simple, but blunter than [NoLetterFilter] for the same job: `--min-length=2`
-/// removed 20% of findings on the measured corpus, almost exactly the same set,
-/// while also discarding two-letter words. Real copy is often very short —
+/// removed much the same set on the measured corpus, while also
+/// discarding two-letter words. Real copy is often very short —
 /// `'OK'`, `'No'`, `'de'`, `'Mo'` — so raising this much above 2 trades away
 /// real findings quickly.
 final class MinLengthFilter extends LiteralFilter {
@@ -118,11 +118,11 @@ final class PatternFilter extends LiteralFilter {
 
 /// Discards literals that are not a phrase of two or more words.
 ///
-/// The most aggressive filter here: it removed 67% of findings on the measured
-/// corpus. It is a triage tool — useful for finding the largest, most obviously
-/// user facing strings first — and a poor gate, because single-word labels are
-/// real copy. On the measured corpus it discarded `'Cancel'`, `'Back'`,
-/// `'Hidden'`, `'Rides'` and `'Camera'` along with the noise.
+/// The most aggressive filter here, and the only one that removed most of the
+/// findings where it was measured. It is a triage tool — useful for finding
+/// the largest, most obviously user facing strings first — and a poor gate,
+/// because single-word labels are real copy: `'Cancel'`, `'Back'` and
+/// `'Settings'` go with the noise.
 ///
 /// Do not use this one to decide that a code base is localized.
 final class ProseOnlyFilter extends LiteralFilter {

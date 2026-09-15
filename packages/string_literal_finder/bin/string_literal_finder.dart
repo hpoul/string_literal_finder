@@ -98,14 +98,14 @@ ArgParser _buildParser() => ArgParser()
     help:
         'Ignore literals with no word in them: punctuation, digits and dates, '
         'plus pure substitutions like \'\$error\'. Keeps templates such as '
-        "' \$unit'. Removed 16% of findings on a real corpus; start here.",
+        "' \$unit'. The safest of these filters; start here.",
   )
   ..addFlag(
     _argProseOnly,
     negatable: false,
     help:
         'Ignore literals that are not a phrase of two or more words. Very '
-        'aggressive (-67%) and discards real single-word labels such as '
+        'aggressive, and discards real single-word labels such as '
         "'Cancel' - for triage, not for a gate.",
   )
   ..addSeparator('CI gating:')
