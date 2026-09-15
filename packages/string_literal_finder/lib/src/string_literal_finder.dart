@@ -494,6 +494,21 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
     return _hasNonNls(param);
   }
 
+  /// The element an index target names, when it names one directly.
+  ///
+  /// `m['k']` and `this.m['k']` are the same access written two ways, so a
+  /// suppression that depends on which one you typed is the kind that gets
+  /// distrusted.
+  ///
+  /// `c.m['k']` and `C.m['k']` are deliberately excluded — both parse as a
+  /// [PrefixedIdentifier], and honouring an annotation on another
+  /// declaration's field is a wider claim than this feature makes.
+  static Element? _indexTargetElement(Expression target) => switch (target) {
+    SimpleIdentifier() => target.element,
+    PropertyAccess(target: ThisExpression()) => target.propertyName.element,
+    _ => null,
+  };
+
   /// Whether [element] carries `@NonNls` / `@NonNlsArg()`.
   ///
   /// `throwOnUnresolved: false` is the whole point. source_gen walks an
@@ -546,13 +561,12 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
           }
         }
         if (node is IndexExpression) {
-          final target = node.realTarget;
-          if (target is SimpleIdentifier) {
-            // The target does not always resolve, and force-unwrapping it
-            // logged a warning with a stack trace per literal. An unresolved
-            // target is simply not one that carries `@NonNls`.
-            final element = target.element;
-            if (element != null && _hasNonNls(element)) {
+          // The target does not always resolve, and force-unwrapping it
+          // logged a warning with a stack trace per literal. An unresolved
+          // target is simply not one that carries `@NonNls`.
+          final element = _indexTargetElement(node.realTarget);
+          if (element != null) {
+            if (_hasNonNls(element)) {
               return true;
             }
             // A top-level variable or field is read through its synthetic

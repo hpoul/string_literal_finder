@@ -28,10 +28,14 @@ The old form only loads the legacy `analyzer_plugin` mechanism, so since
   direction it silently suppressed a visible string.
 * The plugin reported literals nested inside an interpolation twice.
 * `@NonNls` on the target of an index access — documented since 0.2.1 — only
-  ever worked for a **local** variable. A top-level variable or field is read
-  through its synthetic getter, whose metadata is empty, so the annotation was
-  never seen. The example in the README demonstrates the local case, which is
-  why this went unnoticed.
+  ever worked for a **local** variable. A top-level variable, a field or a
+  static is read through its synthetic getter, whose metadata is empty, so the
+  annotation was never seen; `this.map[...]` missed for a second reason, its
+  target being a `PropertyAccess` rather than a plain name. All of those now
+  work. `c.map[...]` and `C.map[...]` deliberately still do not: the
+  annotation is on another declaration, and honouring it there is a wider
+  claim than the feature makes. The example in the README uses a local, which
+  is presumably why this went unnoticed.
 * An unresolved annotation hid any `@NonNls` written after it, because
   source_gen stops at the first annotation whose constant is null.
 * `export` URIs were reported as literals.

@@ -174,6 +174,43 @@ line''';
       ''');
       expect(found, isEmpty);
     });
+    test('this.field is the same access as field', () async {
+      // Writing `this.` is a style choice; a suppression that depends on it
+      // would silently differ from the identical line two above.
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      class C {
+        @NonNls
+        final map = <String, String>{};
+        void m() {
+          final a = map['ignored'];
+          final b = this.map['ignored'];
+        }
+      }
+      ''');
+      expect(found, isEmpty);
+    });
+    test('@NonNls is not honoured through another object', () async {
+      // Deliberate: the annotation is on someone else's declaration, and
+      // honouring it there is a wider claim than the feature makes. `c.m` and
+      // `C.m` are both a PrefixedIdentifier, so both stay out.
+      final found = await _findStrings('''
+      import 'package:string_literal_finder_annotations/string_literal_finder_annotations.dart';
+
+      class C {
+        @NonNls
+        final map = <String, String>{};
+        @NonNls
+        static final statics = <String, String>{};
+      }
+      void f(C c) {
+        final a = c.map['viaObject'];
+        final b = C.statics['viaClass'];
+      }
+      ''');
+      expect(found.map((e) => e.stringValue), ['viaObject', 'viaClass']);
+    });
     test('directive URIs are not literals', () async {
       // `export` was missing from the ignore list even though the README
       // promised directive URIs were ignored.
