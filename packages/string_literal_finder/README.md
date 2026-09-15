@@ -211,6 +211,36 @@ have to be spelled as a regular expression.
 Requires Dart 3.11 or newer. `dart analyze` runs analyzer plugins;
 `flutter analyze` does not.
 
+### If `dart analyze` reports nothing
+
+Analyze the **package**, not a subdirectory:
+
+```shell
+dart analyze          # plugin runs
+dart analyze .        # plugin runs
+dart analyze lib      # plugin is silently skipped
+```
+
+`dart analyze` drops every plugin diagnostic when it is pointed at a
+subdirectory. Ordinary lints still come through, so nothing looks broken — you
+simply get no `literal_string`. Naming a single file works; naming a directory
+below the package root does not.
+
+This is an analyzer bug rather than a configuration mistake:
+<https://github.com/dart-lang/sdk/issues/62710>, reproduced by the Dart team in
+May 2026 and still open. Related:
+<https://github.com/dart-lang/sdk/issues/62690> and
+<https://github.com/dart-lang/sdk/issues/62451>.
+
+Project layout matters too — at least one reporter found `dart analyze .`
+affected as well until the project moved to pub workspaces, so treat "analyze
+the package root" as a workaround that usually holds rather than a rule. The
+same is worth knowing for IDEs: opening a subfolder of a larger workspace has
+been reported to produce the same silence.
+
+If you need this in CI, use the command line tool rather than `dart analyze` —
+it does not go through the plugin system at all.
+
 ## Ignoring literals
 
 * Any argument annotated with `@NonNls` or `@NonNlsArg()`
