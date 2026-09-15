@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,103 +7,438 @@ import 'package:args/command_runner.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:path/path.dart' as path;
+import 'package:string_literal_finder/src/analysis_options.dart';
+import 'package:string_literal_finder/src/baseline.dart';
+import 'package:string_literal_finder/src/filters.dart';
 import 'package:string_literal_finder/src/string_literal_finder.dart';
+import 'package:string_literal_finder/src/utils.dart';
 
 final _logger = Logger('string_literal_finder');
 
 const executableName = 'string_literal_finder';
+
 const _argPath = 'path';
 const _argHelp = 'help';
 const _argVerbose = 'verbose';
 const _argSilent = 'silent';
 const _argExcludePath = 'exclude-path';
 const _argExcludeSuffix = 'exclude-suffix';
+const _argAnalysisOptions = 'analysis-options';
+const _argCacheDir = 'cache-dir';
+const _argDartSdk = 'dart-sdk';
 const _argMetricsFile = 'metrics-output-file';
 const _argAnnotationFile = 'annotations-output-file';
 const _argAnnotationRoot = 'annotations-path-root';
+const _argFormat = 'format';
+const _argBaseline = 'baseline';
+const _argWriteBaseline = 'write-baseline';
+const _argMaxLiterals = 'max-literals';
+const _argMinLength = 'min-length';
+const _argIgnorePattern = 'ignore-pattern';
+const _argIgnoreSymbols = 'ignore-symbols';
+const _argProseOnly = 'prose-only';
+
+const _formatPretty = 'pretty';
+const _formatJson = 'json';
+
+/// Everything is fine.
+const _exitOk = 0;
+
+/// Literals were found which the configured gate does not allow.
+const _exitLiteralsFound = 1;
+
+/// The command line could not be understood.
+const _exitUsage = 2;
+
+/// Something went wrong while analysing.
+const _exitError = 70;
+
+ArgParser _buildParser() => ArgParser()
+  ..addSeparator('Analysis:')
+  ..addOption(_argPath, abbr: 'p', help: 'Base path of your library.')
+  ..addMultiOption(
+    _argExcludePath,
+    help: 'Exclude paths (relative to path, "startsWith").',
+  )
+  ..addMultiOption(
+    _argExcludeSuffix,
+    help: 'Exclude path suffixes ("endsWith").',
+  )
+  ..addFlag(
+    _argAnalysisOptions,
+    defaultsTo: true,
+    help:
+        'Read `string_literal_finder: exclude_globs:` from the '
+        'analysis_options.yaml next to --path.',
+  )
+  ..addOption(
+    _argDartSdk,
+    help:
+        'Root of the Dart SDK to analyse against. Only needed for a binary '
+        'built with `dart compile exe`, which cannot work it out itself.',
+  )
+  ..addOption(
+    _argCacheDir,
+    help:
+        'Directory for the analyzer cache. Reusing it between runs is '
+        'roughly twice as fast; safe to cache in CI.',
+  )
+  ..addSeparator('Filtering (off by default — see README for trade-offs):')
+  ..addOption(
+    _argMinLength,
+    help: 'Ignore literals with fewer than this many visible characters.',
+  )
+  ..addMultiOption(
+    _argIgnorePattern,
+    help: 'Ignore literals matching this regular expression. Repeatable.',
+  )
+  ..addFlag(
+    _argIgnoreSymbols,
+    negatable: false,
+    help:
+        'Ignore literals with no word in them: punctuation, digits and dates, '
+        'plus pure substitutions like \'\$error\'. Keeps templates such as '
+        "' \$unit'. The safest of these filters; start here.",
+  )
+  ..addFlag(
+    _argProseOnly,
+    negatable: false,
+    help:
+        'Ignore literals that are not a phrase of two or more words. Very '
+        'aggressive, and discards real single-word labels such as '
+        "'Cancel' - for triage, not for a gate.",
+  )
+  ..addSeparator('CI gating:')
+  ..addOption(
+    _argBaseline,
+    help: 'Baseline file. Only literals absent from it cause a failure.',
+  )
+  ..addFlag(
+    _argWriteBaseline,
+    negatable: false,
+    help: 'Record the current findings into --baseline and exit 0.',
+  )
+  ..addOption(
+    _argMaxLiterals,
+    help: 'Only fail if more than this many literals are found.',
+  )
+  ..addSeparator('Output:')
+  ..addOption(
+    _argFormat,
+    allowed: [_formatPretty, _formatJson],
+    defaultsTo: _formatPretty,
+    help: 'Output format. `json` writes every finding to stdout.',
+  )
+  ..addOption(_argMetricsFile, abbr: 'm', help: 'File to write json metrics to')
+  ..addOption(
+    _argAnnotationFile,
+    help:
+        'File for annotations as taken by '
+        'https://github.com/Attest/annotations-action/',
+  )
+  ..addOption(
+    _argAnnotationRoot,
+    help: 'Make paths relative to the given root directory.',
+  )
+  ..addFlag(_argVerbose, abbr: 'v')
+  ..addFlag(_argSilent, abbr: 's')
+  ..addFlag(_argHelp, abbr: 'h', negatable: false);
 
 Future<void> main(List<String> arguments) async {
-  PrintAppender.setupLogging(level: Level.SEVERE);
-  final parser = ArgParser()
-    ..addOption(
-      _argPath,
-      abbr: 'p',
-      help: 'Base path of your library.',
-    )
-    ..addOption(_argMetricsFile,
-        abbr: 'm', help: 'File to write json metrics to')
-    ..addOption(_argAnnotationFile,
-        help: 'File for annotations as taken by '
-            'https://github.com/Attest/annotations-action/')
-    ..addOption(_argAnnotationRoot,
-        help: 'Maks paths relative to the given root directory.')
-    ..addMultiOption(_argExcludePath,
-        help: 'Exclude paths (relative to path, "startsWith").')
-    ..addMultiOption(_argExcludeSuffix,
-        help: 'Exclude path suffixes ("endsWith").')
-    ..addFlag(_argVerbose, abbr: 'v')
-    ..addFlag(_argSilent, abbr: 's')
-    ..addFlag(_argHelp, abbr: 'h', negatable: false);
+  // A consumer that stops reading -- `string_literal_finder ... | head` --
+  // closes stdout under us, and the sink reports that as an *asynchronous*
+  // error no try/catch here can see. Unguarded it prints twenty lines of
+  // stack trace over whatever the consumer was showing.
+  //
+  // The error is swallowed rather than acted on. Exiting here would race the
+  // run that is still in progress: the exit code would not have been computed
+  // yet (so a failing gate would report success) and a `--metrics-output-file`
+  // being written would be truncated. Losing output the consumer has stopped
+  // reading is fine; losing the exit code is not.
+  await runZonedGuarded(() => _main(arguments), (error, stackTrace) {
+    if (_isBrokenPipe(error)) {
+      return;
+    }
+    _logger.severe('Error during analysis.', error, stackTrace);
+    exit(_exitError);
+  });
+}
+
+bool _isBrokenPipe(Object error) =>
+    error is FileSystemException &&
+    // EPIPE on unix, ERROR_NO_DATA on Windows.
+    (const [32, 232].contains(error.osError?.errorCode) ||
+        error.message.contains('Broken pipe'));
+
+Future<void> _main(List<String> arguments) async {
+  final parser = _buildParser();
+  // Diagnostics belong on stderr so that `--format=json` keeps stdout
+  // parseable; without `stderrLevel` every record is print()ed to stdout.
+  PrintAppender.setupLogging(level: Level.SEVERE, stderrLevel: Level.SEVERE);
   try {
-    final results = parser.parse(arguments);
-    if (results[_argHelp] as bool) {
-      throw UsageException('Showing help.', parser.usage);
-    }
-    PrintAppender.setupLogging(
-        level: results[_argSilent] as bool
-            ? Level.SEVERE
-            : results[_argVerbose] as bool
-                ? Level.ALL
-                : Level.FINE);
-    if (results[_argPath] == null) {
-      throw UsageException('Required $_argPath parameter.', parser.usage);
-    }
-    final basePath = results[_argPath] as String;
-    final absolutePath = path.absolute(basePath);
-    final stringLiteralFinder = StringLiteralFinder(
-      basePath: absolutePath,
-      excludePaths: ExcludePathChecker.excludePathDefaults
-          .followedBy((results[_argExcludePath] as List<String>)
-              .map((e) => ExcludePathChecker.excludePathCheckerStartsWith(e)))
-          .followedBy((results[_argExcludeSuffix] as List<String>)
-              .map((e) => ExcludePathChecker.excludePathCheckerEndsWith(e)))
-          .toList(),
-    );
-    final foundStringLiterals = await stringLiteralFinder.start();
-
-    await (results[_argAnnotationFile] as String?)?.let((file) =>
-        _generateAnnotationsFile(file, foundStringLiterals,
-            pathRelativeFrom: results[_argAnnotationRoot] as String?));
-
-    final fileCount = foundStringLiterals.map((e) => e.filePath).toSet();
-    final nonLiteralFiles =
-        stringLiteralFinder.filesAnalyzed.difference(fileCount);
-    _logger.finest('Files without Literals: $nonLiteralFiles 👍️');
-    print('Found ${foundStringLiterals.length} literals in '
-        '${fileCount.length} files.');
-    final result = {
-      'stringLiterals': foundStringLiterals.length,
-      'stringLiteralsFiles': fileCount.length,
-      'filesAnalyzed': stringLiteralFinder.filesAnalyzed.length,
-      'filesSkipped': stringLiteralFinder.filesSkipped.length,
-      'filesWithoutLiterals':
-          stringLiteralFinder.filesAnalyzed.length - fileCount.length,
-    };
-    final jsonMetrics = const JsonEncoder.withIndent('  ').convert(result);
-    print(jsonMetrics);
-    await (results[_argMetricsFile] as String?)?.let(
-        (metricsFile) async => File(metricsFile).writeAsString(jsonMetrics));
-    if (foundStringLiterals.isNotEmpty) {
-      exitCode = 1;
-    }
+    exitCode = await _run(parser, parser.parse(arguments));
   } on UsageException catch (e) {
-    print('$executableName [arguments]');
-    print(e);
-    exitCode = 1;
+    stderr.writeln('$executableName [arguments]');
+    stderr.writeln(e);
+    exitCode = _exitUsage;
+  } on FormatException catch (e) {
+    stderr.writeln('$executableName: ${e.message}');
+    exitCode = _exitUsage;
   } catch (e, stackTrace) {
     _logger.severe('Error during analysis.', e, stackTrace);
-    exitCode = 70;
+    exitCode = _exitError;
   }
+}
+
+Future<int> _run(ArgParser parser, ArgResults results) async {
+  if (results.flag(_argHelp)) {
+    throw UsageException('Showing help.', parser.usage);
+  }
+  final json = results.option(_argFormat) == _formatJson;
+  PrintAppender.setupLogging(
+    stderrLevel: Level.SEVERE,
+    level: switch (results) {
+      // In json mode stdout carries the report, so nothing below SEVERE is
+      // emitted at all -- `stderrLevel` only routes SEVERE and above, so a
+      // verbose run would otherwise print onto the report.
+      _ when results.flag(_argSilent) || json => Level.SEVERE,
+      _ when results.flag(_argVerbose) => Level.ALL,
+      _ => Level.FINE,
+    },
+  );
+  final basePath = results.option(_argPath);
+  if (basePath == null) {
+    throw UsageException('Required $_argPath parameter.', parser.usage);
+  }
+  final absolutePath = path.absolute(basePath);
+
+  final baselinePath = results.option(_argBaseline);
+  final writeBaseline = results.flag(_argWriteBaseline);
+  if (writeBaseline && baselinePath == null) {
+    throw UsageException(
+      '--$_argWriteBaseline requires --$_argBaseline.',
+      parser.usage,
+    );
+  }
+
+  final stringLiteralFinder = StringLiteralFinder(
+    basePath: absolutePath,
+    excludePaths: [
+      ...ExcludePathChecker.excludePathDefaults,
+      ...results
+          .multiOption(_argExcludePath)
+          .map(ExcludePathChecker.excludePathCheckerStartsWith),
+      ...results
+          .multiOption(_argExcludeSuffix)
+          .map(ExcludePathChecker.excludePathCheckerEndsWith),
+    ],
+    analysisOptions: results.flag(_argAnalysisOptions)
+        ? _loadAnalysisOptions(absolutePath)
+        : null,
+    cachePath: results.option(_argCacheDir)?.let(path.absolute),
+    sdkPath: results.option(_argDartSdk)?.let(path.absolute),
+  );
+  final filters = _buildFilters(results);
+  // Parsed before the analysis runs: discovering a typo after several minutes
+  // of work would be a poor trade.
+  final maxLiterals = results
+      .option(_argMaxLiterals)
+      ?.let((e) => _nonNegativeInt(e, _argMaxLiterals));
+  final allFound = await stringLiteralFinder.start();
+  final foundStringLiterals = filters.apply(allFound);
+
+  final comparison = writeBaseline
+      ? null
+      : baselinePath?.let(
+          (file) =>
+              _readBaseline(file).compare(foundStringLiterals, absolutePath),
+        );
+  final reported = comparison?.newLiterals ?? foundStringLiterals;
+
+  final metrics = <String, Object?>{
+    'stringLiterals': reported.length,
+    'stringLiteralsFiles': reported.map((e) => e.filePath).toSet().length,
+    'filesAnalyzed': stringLiteralFinder.filesAnalyzed.length,
+    'filesSkipped': stringLiteralFinder.filesSkipped.length,
+    'filesWithoutLiterals':
+        stringLiteralFinder.filesAnalyzed.length -
+        allFound.map((e) => e.filePath).toSet().length,
+    // Files the syntactic pre-pass proved could not contain a finding, and
+    // which were therefore never resolved.
+    'filesNotResolved': stringLiteralFinder.filesSkippedBySyntacticPrePass,
+    if (filters.isNotEmpty) ...{
+      'literalsBeforeFiltering': allFound.length,
+      'filteredOut': allFound.length - foundStringLiterals.length,
+    },
+    if (comparison != null) ...{
+      'baselineLiterals': foundStringLiterals.length - reported.length,
+      'baselineObsolete': comparison.obsoleteCount,
+    },
+  };
+
+  Future<void> writeMetricsFile() async {
+    await results
+        .option(_argMetricsFile)
+        ?.let(
+          (metricsFile) =>
+              File(metricsFile).writeAsString(_encodeJson(metrics)),
+        );
+  }
+
+  if (writeBaseline) {
+    final baseline = Baseline.fromFound(foundStringLiterals, absolutePath);
+    await File(baselinePath!).writeAsString(baseline.toJson());
+    // stdout belongs to the report in json mode.
+    (json ? stderr : stdout).writeln(
+      'Recorded ${baseline.totalCount} literals in '
+      '${baseline.literals.length} files to $baselinePath.',
+    );
+    await writeMetricsFile();
+    return _exitOk;
+  }
+
+  await results
+      .option(_argAnnotationFile)
+      ?.let(
+        (file) => _generateAnnotationsFile(
+          file,
+          reported,
+          pathRelativeFrom: results.option(_argAnnotationRoot),
+        ),
+      );
+
+  final failed = reported.length > (maxLiterals ?? 0);
+
+  if (json) {
+    _writeJsonReport(reported, metrics, absolutePath, failed: failed);
+  } else {
+    _writePrettyReport(
+      reported,
+      metrics,
+      absolutePath,
+      filters,
+      comparison: comparison,
+    );
+  }
+
+  await writeMetricsFile();
+
+  return failed ? _exitLiteralsFound : _exitOk;
+}
+
+/// Parses [value], reporting the flag it came from rather than leaving
+/// `int.parse` to complain about a "radix-10 number" nobody asked for.
+int _nonNegativeInt(String value, String flag) {
+  final parsed = int.tryParse(value);
+  if (parsed == null || parsed < 0) {
+    throw FormatException(
+      '--$flag expects a non-negative integer, got "$value".',
+    );
+  }
+  return parsed;
+}
+
+List<LiteralFilter> _buildFilters(ArgResults results) => [
+  ...?results
+      .option(_argMinLength)
+      ?.let((e) => [MinLengthFilter(_nonNegativeInt(e, _argMinLength))]),
+  ...results.multiOption(_argIgnorePattern).map(PatternFilter.parse),
+  if (results.flag(_argIgnoreSymbols)) const NoLetterFilter(),
+  if (results.flag(_argProseOnly)) const ProseOnlyFilter(),
+];
+
+/// Loads the `analysis_options.yaml` governing [basePath], searching upwards
+/// the same way the analyzer plugin does.
+AnalysisOptions? _loadAnalysisOptions(String basePath) {
+  var dir = Directory(basePath).absolute;
+  while (true) {
+    final file = File(path.join(dir.path, 'analysis_options.yaml'));
+    if (file.existsSync()) {
+      _logger.fine('Reading exclude_globs from ${file.path}');
+      return AnalysisOptions.loadFromYaml(dir.path, file.readAsStringSync());
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) {
+      return null;
+    }
+    dir = parent;
+  }
+}
+
+Baseline _readBaseline(String filePath) {
+  final file = File(filePath);
+  if (!file.existsSync()) {
+    throw FormatException(
+      'Baseline file $filePath does not exist. Create it with '
+      '--$_argBaseline=$filePath --$_argWriteBaseline.',
+    );
+  }
+  return Baseline.fromJson(file.readAsStringSync());
+}
+
+String _encodeJson(Object? value) =>
+    const JsonEncoder.withIndent('  ').convert(value);
+
+Map<String, Object?> _literalToJson(
+  FoundStringLiteral literal,
+  String basePath,
+) => {
+  'path': path.relative(literal.filePath, from: basePath),
+  'line': literal.loc.lineNumber,
+  'column': literal.loc.columnNumber,
+  'endLine': literal.locEnd.lineNumber,
+  'endColumn': literal.locEnd.columnNumber,
+  'literal': literal.sourceText,
+  'value': literal.textValue,
+};
+
+void _writeJsonReport(
+  List<FoundStringLiteral> found,
+  Map<String, Object?> metrics,
+  String basePath, {
+  required bool failed,
+}) {
+  stdout.writeln(
+    _encodeJson({
+      'ok': !failed,
+      'metrics': metrics,
+      'literals': [
+        for (final literal in found) _literalToJson(literal, basePath),
+      ],
+    }),
+  );
+}
+
+void _writePrettyReport(
+  List<FoundStringLiteral> found,
+  Map<String, Object?> metrics,
+  String basePath,
+  List<LiteralFilter> filters, {
+  BaselineComparison? comparison,
+}) {
+  for (final literal in found) {
+    final relative = path.relative(literal.filePath, from: basePath);
+    stdout.writeln(
+      '$relative:${literal.loc.lineNumber}:'
+      '${literal.loc.columnNumber} ${literal.sourceText}',
+    );
+  }
+  final fileCount = found.map((e) => e.filePath).toSet().length;
+  final label = comparison == null ? 'literal' : 'new literal';
+  stdout.writeln(
+    'Found ${found.length} $label${found.length == 1 ? '' : 's'} in '
+    '$fileCount file${fileCount == 1 ? '' : 's'}.',
+  );
+  for (final filter in filters) {
+    stdout.writeln('  (ignoring literals ${filter.description})');
+  }
+  if (comparison != null && comparison.obsoleteCount > 0) {
+    stdout.writeln(
+      '  ${comparison.obsoleteCount} baseline entries no longer '
+      'exist; re-record the baseline to shrink it.',
+    );
+  }
+  stdout.writeln(_encodeJson(metrics));
 }
 
 Future<void> _generateAnnotationsFile(
@@ -110,9 +446,11 @@ Future<void> _generateAnnotationsFile(
   List<FoundStringLiteral> foundStringLiterals, {
   String? pathRelativeFrom,
 }) async {
-  print('ok?');
-  final pathValue = pathRelativeFrom
-          ?.let((from) => (String p) => path.relative(p, from: from)) ??
+  final pathValue =
+      pathRelativeFrom?.let(
+        (from) =>
+            (String p) => path.relative(p, from: from),
+      ) ??
       ((String p) => p);
   final annotations = foundStringLiterals
       .map(
@@ -126,10 +464,4 @@ Future<void> _generateAnnotationsFile(
       )
       .toList();
   await File(file).writeAsString(json.encode(annotations));
-}
-
-extension<T extends Object> on T {
-  U let<U>(U Function(T value) cb) {
-    return cb(this);
-  }
 }

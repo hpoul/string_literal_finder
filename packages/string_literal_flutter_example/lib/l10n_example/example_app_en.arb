@@ -2,5 +2,13 @@
   "helloWorld": "Hello World!",
   "@helloWorld": {
     "description": "The conventional newborn programmer greeting"
+  },
+  "increment": "Increment",
+  "@increment": {
+    "description": "Tooltip of the button which increases the counter"
+  },
+  "pushCount": "You have pushed the button this many times:",
+  "@pushCount": {
+    "description": "Explains the number shown below it"
   }
 }

@@ -9,9 +9,11 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
-analyzer:
-  plugins:
-    - string_literal_finder
+# `plugins:` is a top-level key. The `analyzer: plugins:` form is the legacy
+# plugin mechanism and does not load an `analysis_server_plugin` based plugin.
+plugins:
+  string_literal_finder:
+    path: ../string_literal_finder
 
 linter:
   # The lint rules applied to this project can be customized in the
@@ -26,6 +28,15 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 
