@@ -157,6 +157,90 @@ inside
         isNull,
       );
     });
+
+    // A `// NON-NLS` names the line its literal ends on, so it only means what
+    // it says for as long as the line breaks stay put -- and `dart format`
+    // owns the line breaks. Four of eight applications in one real file were
+    // dead after a single format run, which is why these decline instead.
+    group('would not survive dart format', () {
+      test('declines when the marker would cross the page width', () async {
+        // Under the page width now, over it once the marker is appended: the
+        // formatter re-splits the statement, the literal moves up a line, and
+        // the marker is left behind on the closing one.
+        final name = 'f' * 62;
+        final line = "  $name('target');";
+        expect(line.length, 75);
+        expect(line.length + ' // NON-NLS'.length, greaterThan(80));
+        expect(
+          await fix('''
+void $name(String v) {}
+void g() {
+$line
+}
+'''),
+          isNull,
+        );
+      });
+
+      test('still appends when the line is already over the width', () async {
+        // Nothing can split a line whose length is one long literal, so the
+        // marker is not what decides the layout here and appending is safe.
+        final long = 'target${'x' * 90}';
+        final result = await fix('''
+void f(String v) {}
+void g() {
+  f('$long');
+}
+''', marker: "'target");
+        expect(result, contains("f('$long'); // NON-NLS"));
+      });
+
+      test('declines when the line ends with an open collection', () async {
+        // The observed case: the formatter reads the marker as the leading
+        // comment of the first entry and moves it inside the map.
+        expect(
+          await fix('''
+void f(String v, Map<String, String> m) {}
+void g() {
+  f('target', {
+    'a': 'b',
+  });
+}
+'''),
+          isNull,
+        );
+      });
+
+      test('declines when the line ends with an open argument list', () async {
+        expect(
+          await fix('''
+void f(String v, String w) {}
+void g() {
+  f('target', f(
+    'a',
+    'b',
+  ));
+}
+'''),
+          isNull,
+        );
+      });
+
+      test('still appends when the line ends with a block brace', () async {
+        // A block brace does not pull a trailing comment inside it, and
+        // `if (x == 'target') {` is an ordinary place to want a suppression --
+        // so the rule has to ask what the bracket opens, not what it looks
+        // like.
+        final result = await fix('''
+void g(String x) {
+  if (x == 'target') {
+    print(x);
+  }
+}
+''');
+        expect(result, contains("if (x == 'target') { // NON-NLS"));
+      });
+    });
   });
 
   group('WrapWithNonNls', () {
