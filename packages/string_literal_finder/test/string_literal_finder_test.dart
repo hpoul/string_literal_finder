@@ -151,6 +151,26 @@ line''';
       await Future<void>.delayed(Duration.zero);
       expect(warnings, isEmpty);
     });
+    test('a static call target does not warn', () async {
+      // `Uri.parse(...)` and `path.join(...)` have no static type on the
+      // target, because a type or prefix name is not an expression that
+      // evaluates to anything. Warning about it produced several lines per run
+      // on a real code base and read as though resolution were broken.
+      final warnings = <String>[];
+      final subscription = Logger.root.onRecord
+          .where((record) => record.level >= Level.WARNING)
+          .listen((record) => warnings.add(record.message));
+      addTearDown(subscription.cancel);
+
+      final found = await _findStrings('''
+      import 'dart:core';
+      final a = Uri.parse('found');
+      final b = DateTime.parse('alsoFound');
+      ''');
+      expect(found.map((e) => e.stringValue), ['found', 'alsoFound']);
+      await Future<void>.delayed(Duration.zero);
+      expect(warnings, isEmpty);
+    });
     test('@NonNls on the target of an index expression', () async {
       // A top-level variable or field is read through its synthetic getter,
       // whose metadata is empty, so checking the referenced element alone

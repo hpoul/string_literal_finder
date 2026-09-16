@@ -264,8 +264,11 @@ Future<int> _run(ArgParser parser, ArgResults results) async {
         stringLiteralFinder.filesAnalyzed.length -
         allFound.map((e) => e.filePath).toSet().length,
     // Files the syntactic pre-pass proved could not contain a finding, and
-    // which were therefore never resolved.
-    'filesNotResolved': stringLiteralFinder.filesSkippedBySyntacticPrePass,
+    // which were therefore never resolved. Named for the pre-pass rather than
+    // for resolution: this is work avoided, and the previous name
+    // (`filesNotResolved`) read as "the analyzer failed on these".
+    'filesSkippedBySyntacticPrePass':
+        stringLiteralFinder.filesSkippedBySyntacticPrePass,
     if (filters.isNotEmpty) ...{
       'literalsBeforeFiltering': allFound.length,
       'filteredOut': allFound.length - foundStringLiterals.length,
