@@ -1,3 +1,22 @@
+## 2.0.0-dev.3
+
+Fixes from the first real-world adoption.
+
+**Breaking:** requires `string_literal_finder_annotations` 2.0.0, where
+`nonNls<T>` became `nonNls<T extends Object>`. Wrapping a literal used to be
+able to change its type — `x ?? nonNls('')` made the whole expression nullable
+— and break compilation somewhere else.
+
+### Fixed
+
+* "Add `// NON-NLS`" produced suppressions that `dart format` then destroyed:
+  four of eight applications in one file were dead after one format run. It now
+  declines where the marker would not survive reformatting, leaving
+  `nonNls()` — which is layout-independent — as the offered fix.
+* `filesNotResolved` in the metrics JSON is now
+  `filesSkippedBySyntacticPrePass`. It counts files the pre-pass proved need no
+  resolution, and read as a failure count.
+
 ## 2.0.0-dev.2
 
 **Breaking:** the plugin is enabled with a **top-level** `plugins:` key now.
