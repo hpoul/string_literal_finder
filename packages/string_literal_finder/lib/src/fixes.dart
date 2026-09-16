@@ -82,6 +82,14 @@ typedef _CommentPlacement = ({int offset, String text});
 /// existing comment, which is wrong for `f('https://example.com')` — a URL is
 /// the archetypal literal someone suppresses, and treating it as a comment
 /// produces ` NON-NLS` with no `//`, which does not parse.
+///
+/// Returns null wherever the suppression would not survive `dart format`. The
+/// marker means "the literal ending on this line", so its meaning depends on
+/// the line breaks — and the formatter owns the line breaks. That is not a
+/// corner case: on the first real code base this was used on, four of eight
+/// applications in one file were dead after a single format run, and with
+/// format-on-save nobody ever sees the state in between. Declining leaves
+/// [WrapWithNonNls] as the offered fix, which reformatting cannot break.
 _CommentPlacement? _commentPlacement(
   StringLiteral literal,
   ResolvedUnitResult unitResult,
@@ -93,6 +101,7 @@ _CommentPlacement? _commentPlacement(
   // Walk to the first token on a later line, collecting the comments attached
   // along the way. A comment is attached to the token that follows it.
   final comments = <Token>[];
+  var lastCodeToken = literal.endToken;
   Token? token = literal.endToken.next;
   while (token != null && token.type != TokenType.EOF && onLine(token.offset)) {
     // A token that starts on this line but ends after it -- a multi-line
@@ -102,10 +111,15 @@ _CommentPlacement? _commentPlacement(
       return null;
     }
     _collectComments(token, comments, onLine);
+    lastCodeToken = token;
     token = token.next;
   }
   if (token != null) {
     _collectComments(token, comments, onLine);
+  }
+
+  if (_swallowsTrailingComment(unitResult.unit, lastCodeToken)) {
+    return null;
   }
 
   for (final comment in comments) {
@@ -147,10 +161,70 @@ _CommentPlacement? _commentPlacement(
       trailing != null &&
       trailing.type == TokenType.SINGLE_LINE_COMMENT &&
       trailing.end == endOfLine;
-  return (
-    offset: endOfLine,
-    text: extendsLineComment ? ' NON-NLS' : ' // NON-NLS',
-  );
+  final text = extendsLineComment ? ' NON-NLS' : ' // NON-NLS';
+
+  // Appending must not push the line past the page width, because the
+  // formatter would then re-split the statement and the literal would move up
+  // a line while the marker stayed on the closing one:
+  //
+  //     await File('$dir/$name').writeAsBytes(bytes, flush: true); // NON-NLS
+  //
+  // becomes
+  //
+  //     await File(
+  //       '$dir/$name',
+  //     ).writeAsBytes(bytes, flush: true); // NON-NLS
+  //
+  // A line that is *already* over the width is left alone: the formatter has
+  // been unable to split it as it is, so the marker is not what decides the
+  // layout and appending changes nothing.
+  final pageWidth = unitResult.analysisOptions.formatterOptions.pageWidth ?? 80;
+  final width = endOfLine - lineInfo.getOffsetOfLine(line - 1);
+  if (width <= pageWidth && width + text.length > pageWidth) {
+    return null;
+  }
+
+  return (offset: endOfLine, text: text);
+}
+
+/// Whether a comment appended after [lastCodeToken] would be reformatted into
+/// the brackets it follows rather than staying on this line.
+///
+/// When a split leaves an argument list, collection literal or parameter list
+/// open at the end of a line, the formatter treats a trailing comment as the
+/// leading comment of the first element and moves it down:
+///
+///     _channel.invokeMethod('replaceIdentities', { // NON-NLS
+///
+/// becomes
+///
+///     _channel.invokeMethod('replaceIdentities', {
+///       // NON-NLS
+///
+/// The marker then names a line the literal is not on, and suppresses nothing.
+///
+/// A brace that opens a *block* does not behave this way -- the comment stays
+/// where it was put -- which matters because `if (x == 'target') {` is an
+/// ordinary place to want a suppression. So this asks what the bracket opens
+/// rather than matching on the token type.
+bool _swallowsTrailingComment(CompilationUnit unit, Token lastCodeToken) {
+  if (!const {
+    TokenType.OPEN_PAREN,
+    TokenType.OPEN_CURLY_BRACKET,
+    TokenType.OPEN_SQUARE_BRACKET,
+  }.contains(lastCodeToken.type)) {
+    return false;
+  }
+  final node = unit.nodeCovering(offset: lastCodeToken.offset, length: 1);
+  return switch (node) {
+    ArgumentList() => true,
+    // List, set and map literals.
+    TypedLiteral() => true,
+    RecordLiteral() => true,
+    FormalParameterList() => true,
+    ParenthesizedExpression() => true,
+    _ => false,
+  };
 }
 
 /// Whether [comment] documents the declaration that follows it.

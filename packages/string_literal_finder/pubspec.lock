@@ -356,11 +356,10 @@ packages:
   string_literal_finder_annotations:
     dependency: "direct main"
     description:
-      name: string_literal_finder_annotations
-      sha256: "98bf9f1b4ced57201eaa1943769ce5841411e31ad4da5509cc9a335d7738d8b6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.0"
+      path: "../string_literal_finder_annotations"
+      relative: true
+    source: path
+    version: "2.0.0"
   string_scanner:
     dependency: transitive
     description:

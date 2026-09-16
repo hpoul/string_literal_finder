@@ -23,6 +23,17 @@ dart pub global activate string_literal_finder
 dart pub global run string_literal_finder --path=lib
 ```
 
+Neither front end has to be a dependency of the project it checks. The plugin
+is resolved by the analyzer from the `plugins:` entry alone, and the command
+line tool runs from `pub global activate` — so no entry in `pubspec.yaml` is
+needed for either.
+
+That matters because this package requires `analyzer` 14, and an app whose own
+dependencies pin an older analyzer cannot add it as a dev dependency at all:
+version solving simply fails. Installing it globally sidesteps that, and the
+`dart run string_literal_finder` in the examples below becomes
+`dart pub global run string_literal_finder`.
+
 ```
 lib/example.dart:17:30 'not translated'
 Found 1 literal in 1 file.
@@ -210,6 +221,18 @@ have to be spelled as a regular expression.
 
 Requires Dart 3.11 or newer. `dart analyze` runs analyzer plugins;
 `flutter analyze` does not.
+
+### Give it time on a large project
+
+Plugins start cold. On a large Flutter app expect the first warnings in a file
+to take tens of seconds after you open it, and the quick fixes to become
+available a further ten or so seconds after that. Until then the warning is
+there with no fixes offered — not even the analyzer's own "Ignore
+`literal_string` for this line" — which looks like the fixes are missing rather
+than not ready yet. They arrive; the menu just has to be reopened.
+
+Small projects show none of this, so a quick test in a scratch package is not a
+guide to how it will feel in a real one.
 
 ### If `dart analyze` reports nothing
 

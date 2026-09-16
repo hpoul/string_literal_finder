@@ -641,13 +641,25 @@ class StringLiteralVisitor<R> extends GeneralizingAstVisitor<R> {
             return true;
           }
           final target = node.target;
-          if (target != null) {
+          final targetType = target?.staticType;
+          if (targetType != null) {
             // ignore all calls to `Logger`
-            if (target.staticType == null) {
-              _logger.warning('Unable to resolve type for $target');
-            } else if (loggerChecker.isAssignableFromType(target.staticType!)) {
+            if (loggerChecker.isAssignableFromType(targetType)) {
               return true;
             }
+          } else if (target != null) {
+            // Not a failure: the target of a static call names a type or an
+            // import prefix -- the `Uri` of `Uri.parse(...)`, the `path` of
+            // `path.join(...)` -- and a name is not an expression that
+            // evaluates to anything, so it has no static type. An identifier
+            // that genuinely does not resolve gets `InvalidType` rather than
+            // null, so it does not arrive here.
+            //
+            // Either way the question being asked is answered: a type or
+            // prefix is not a `Logger`. This was a warning, which put several
+            // lines per run into an otherwise clean run and read as though
+            // analysis were partly broken.
+            _logger.fine('No static type for call target $target');
           }
         }
         if (node is FunctionDeclaration || node is MethodDeclaration) {
